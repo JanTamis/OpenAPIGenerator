@@ -1,0 +1,1176 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Omgevingsdocumenten-Verbeelden-v3",
+    "description": "De Omgevingsdocumenten Verbeelden API ontsluit informatie tbv het verbeelden van beschikbaar gestelde omgevingsdocumenten. Op de Ontwikkel, Test, Acceptatie en Pre-productieomgeving worden ook omgevingsdocumenten toegevoegd en verwijderd door beheerders voor testdoeleinden binnen en buiten de voorziening.<br/>\n<br/>\n De Omgevingsdocumenten Verbeelden API volgt de standaarden zoals beschreven in de DSO API-strategie versie 1.1. Zo is het standaard mediatype HAL (`application/hal+json`). Dit is een mediatype voor het weergeven van resources en hun relaties via hyperlinks. Layers zijn gebaseerd op de <a href=\"https://docs.ogc.org/DRAFTS/20-057.html\">OGC API Tiles</a>.",
+    "version": "3.7.0"
+  },
+  "servers": [
+    {
+      "url": "/publiek/omgevingsdocumenten/api/verbeelden/v3",
+      "description": "basePath"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Mapbox",
+      "description": "Mapbox uitleveren ten behoeve van verbeeldingen."
+    }
+  ],
+  "paths": {
+    "/symbolen/findById/{symboolId}": {
+      "get": {
+        "tags": [
+          "symbolen"
+        ],
+        "summary": "Een symbool opvragen met de symbool id",
+        "operationId": "getSymboolById",
+        "parameters": [
+          {
+            "name": "symboolId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "lsh000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "symbool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymboolDeprecated"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/symbolen/mapbox/_zoek": {
+      "post": {
+        "tags": [
+          "Mapbox"
+        ],
+        "summary": "styles ophalen aan de hand van de object identificaties en linken met locatie id",
+        "operationId": "mapboxZoek",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/geldigOp"
+          },
+          {
+            "$ref": "#/components/parameters/inWerkingOp"
+          },
+          {
+            "$ref": "#/components/parameters/beschikbaarOp"
+          },
+          {
+            "$ref": "#/components/parameters/synchroniseerMetTileset"
+          }
+        ],
+        "requestBody": {
+          "description": "een lijst van symbool id met locaties id",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapboxZoekobject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "symbool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerbeeldingDeprecated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "description": "Onverwacht probleem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/symbolen/mapbox-geo/_zoek": {
+      "post": {
+        "tags": [
+          "Mapbox"
+        ],
+        "summary": "styles ophalen aan de hand van de object identificaties en linken met locatie id",
+        "operationId": "mapboxZoekGeo",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/geldigOp"
+          },
+          {
+            "$ref": "#/components/parameters/inWerkingOp"
+          },
+          {
+            "$ref": "#/components/parameters/beschikbaarOp"
+          },
+          {
+            "$ref": "#/components/parameters/synchroniseerMetTileset"
+          }
+        ],
+        "requestBody": {
+          "description": "een lijst van symbool id met locaties id",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapboxZoekobject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "symbool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Verbeelding"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "description": "Onverwacht probleem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tiling": {
+      "get": {
+        "tags": [
+          "tijdreizen"
+        ],
+        "summary": "Tijdstip van de meest recente tileset opvragen",
+        "operationId": "getTiling",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/tileset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tijdstip in JJJJ-MM-DDTUU:MM:SS formaat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TilingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "health info",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Onverwacht probleem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app-info": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "applicatie info",
+        "operationId": "getInfo",
+        "responses": {
+          "200": {
+            "description": "Info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Info"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Onverwacht probleem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/spritesheet.png": {
+      "get": {
+        "tags": [
+          "symbolen"
+        ],
+        "summary": "spritesheet.png ophalen",
+        "operationId": "getSpritesheetImage",
+        "responses": {
+          "200": {
+            "description": "symbool",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": []
+          }
+        ],
+        "x-auth-type": "none",
+        "x-throttling-tier": "Unlimited"
+      }
+    },
+    "/spritesheet@2x.png": {
+      "get": {
+        "tags": [
+          "symbolen"
+        ],
+        "summary": "spritesheet@2x.png ophalen",
+        "operationId": "getSpritesheetImage2x",
+        "responses": {
+          "200": {
+            "description": "symbool",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": []
+          }
+        ],
+        "x-auth-type": "none",
+        "x-throttling-tier": "Unlimited"
+      }
+    },
+    "/spritesheet.json": {
+      "get": {
+        "tags": [
+          "symbolen"
+        ],
+        "summary": "spritesheet.json ophalen",
+        "operationId": "getSpritesheetJson",
+        "responses": {
+          "200": {
+            "description": "symbool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": []
+          }
+        ],
+        "x-auth-type": "none",
+        "x-throttling-tier": "Unlimited"
+      }
+    },
+    "/spritesheet@2x.json": {
+      "get": {
+        "tags": [
+          "symbolen"
+        ],
+        "summary": "spritesheet@2x.json ophalen",
+        "operationId": "getSpritesheetJson2x",
+        "responses": {
+          "200": {
+            "description": "symbool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": []
+          }
+        ],
+        "x-auth-type": "none",
+        "x-throttling-tier": "Unlimited"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MapboxZoekobject": {
+        "required": [
+          "zoekObjecten"
+        ],
+        "type": "object",
+        "properties": {
+          "zoekObjecten": {
+            "type": "array",
+            "description": "Lijst met ZoekObjecten.",
+            "items": {
+              "$ref": "#/components/schemas/generiekZoekobject"
+            }
+          }
+        },
+        "description": "Zoekobject voor mapbox bevragingen."
+      },
+      "generiekZoekobject": {
+        "required": [
+          "objectType",
+          "primairObjectIdentificator"
+        ],
+        "type": "object",
+        "properties": {
+          "objectType": {
+            "type": "string",
+            "enum": [
+              "GebiedsaanwijzingZoekobject",
+              "OmgevingsnormNormwaardeZoekobject",
+              "OmgevingswaardeNormwaardeZoekobject",
+              "RegeltekstActiviteitlocatieaanduidingZoekobject",
+              "KaartKaartlaagZoekobject",
+              "WerkingsgebiedZoekobject",
+              "RegelingsgebiedZoekobject",
+              "VergunningsgebiedZoekobject",
+              "OntwerpGebiedsaanwijzingZoekobject",
+              "OntwerpOmgevingsnormNormwaardeZoekobject",
+              "OntwerpOmgevingswaardeNormwaardeZoekobject",
+              "OntwerpRegeltekstActiviteitlocatieaanduidingZoekobject",
+              "OntwerpKaartKaartlaagZoekobject",
+              "OntwerpWerkingsgebiedZoekobject",
+              "OntwerpRegelingsgebiedZoekobject"
+            ]
+          },
+          "primairObjectIdentificator": {
+            "$ref": "#/components/schemas/primairObjectIdentificator"
+          },
+          "secundaireObjectIdentificatoren": {
+            "type": "array",
+            "description": "Een lijst identificaties van het bij het objecttype ondergelegen objecten, verplicht m.u.v. gebiedsaanwijzingen. Voor het WerkingsgebiedZoekobject en OntwerpWerkingsgebiedZoekobject zijn SecundaireIdentificatoren optioneel in te vullen met werkingsgebied identificaties en/of technischId voor het verbeelden van specifieke werkingsgebieden.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Generiek zoekobject voor mapbox bevragingen voor objecten."
+      },
+      "primairObjectIdentificator": {
+        "title": "primairObjectIdentificator",
+        "type": "object",
+        "oneOf": [
+          {
+            "properties": {
+              "primairObjectIdentificatie": {
+                "title": "primairObjectIdentificatie",
+                "type": "string"
+              }
+            }
+          },
+          {
+            "properties": {
+              "primairObjectTechnischId": {
+                "title": "primairObjectTechnischId",
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "MapboxStyleRequest": {
+        "type": "object",
+        "properties": {
+          "symboollocaties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MapboxStyleRequestItem"
+            }
+          }
+        }
+      },
+      "MapboxStyleRequestItem": {
+        "type": "object",
+        "properties": {
+          "symboolcode": {
+            "type": "string"
+          },
+          "locaties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ontwerp_locaties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VerbeeldingDeprecated": {
+        "type": "object",
+        "properties": {
+          "mapboxstyle": {
+            "$ref": "#/components/schemas/MapboxStyleDeprecated"
+          },
+          "symboolmetadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymboolMetadataDeprecated"
+            }
+          }
+        }
+      },
+      "Verbeelding": {
+        "type": "object",
+        "properties": {
+          "mapboxstyle": {
+            "$ref": "#/components/schemas/MapboxStyle"
+          },
+          "symboolmetadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymboolMetadata"
+            }
+          }
+        }
+      },
+      "SymboolMetadataDeprecated": {
+        "type": "object",
+        "properties": {
+          "identificator": {
+            "type": "string"
+          },
+          "objecttype": {
+            "type": "string",
+            "enum": [
+              "activiteitlocatieaanduiding",
+              "gebiedsaanwijzing",
+              "normwaarde",
+              "kaartlaag",
+              "ontwerpactiviteitlocatieaanduiding",
+              "ontwerpgebiedsaanwijzing",
+              "ontwerpnormwaarde",
+              "ontwerpkaartlaag"
+            ]
+          },
+          "symboolcode": {
+            "type": "string"
+          },
+          "locaties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Locatie"
+            }
+          }
+        }
+      },
+      "SymboolMetadata": {
+        "type": "object",
+        "properties": {
+          "identificator": {
+            "type": "string"
+          },
+          "objecttype": {
+            "type": "string",
+            "enum": [
+              "activiteitlocatieaanduiding",
+              "gebiedsaanwijzing",
+              "normwaarde",
+              "kaartlaag",
+              "ontwerpactiviteitlocatieaanduiding",
+              "ontwerpgebiedsaanwijzing",
+              "ontwerpnormwaarde",
+              "ontwerpkaartlaag"
+            ]
+          },
+          "symboolcode": {
+            "type": "string"
+          },
+          "geometrieIdentificaties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Locatie": {
+        "type": "object",
+        "properties": {
+          "identificatie": {
+            "type": "string"
+          },
+          "technischId": {
+            "type": "string"
+          },
+          "versie": {
+            "type": "integer"
+          }
+        }
+      },
+      "MapboxStyle": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sprite": {
+            "type": "string"
+          },
+          "sprite_ref": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "omgevingsdocument": {
+                "$ref": "#/components/schemas/Source"
+              }
+            }
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Symbool"
+            }
+          }
+        }
+      },
+      "MapboxStyleDeprecated": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sprite": {
+            "type": "string"
+          },
+          "sprite_ref": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "omgevingsdocument": {
+                "$ref": "#/components/schemas/Source"
+              }
+            }
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymboolDeprecated"
+            }
+          }
+        }
+      },
+      "Source": {
+        "properties": {
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "SymboolDeprecated": {
+        "title": "Symbool",
+        "required": [
+          "filter",
+          "id",
+          "layout",
+          "paint",
+          "source",
+          "source-layer",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "line",
+              "circle",
+              "fill",
+              "symbol"
+            ]
+          },
+          "niveau": {
+            "type": "number",
+            "default": 0
+          },
+          "source": {
+            "type": "string"
+          },
+          "source-layer": {
+            "type": "string",
+            "enum": [
+              "vlaklocaties",
+              "puntlocaties",
+              "lijnlocaties",
+              "vlaklocaties_totaal",
+              "puntlocaties_totaal",
+              "lijnlocaties_totaal",
+              "ontwerp_vlaklocaties",
+              "ontwerp_puntlocaties",
+              "ontwerp_lijnlocaties"
+            ]
+          },
+          "paint": {
+            "$ref": "#/components/schemas/Paint"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/Layout"
+          },
+          "filter": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "Symbool": {
+        "title": "Symbool",
+        "required": [
+          "filter",
+          "id",
+          "layout",
+          "paint",
+          "source",
+          "source-layer",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "line",
+              "circle",
+              "fill",
+              "symbol"
+            ]
+          },
+          "niveau": {
+            "type": "number",
+            "default": 0
+          },
+          "source": {
+            "type": "string"
+          },
+          "source-layer": {
+            "type": "string",
+            "enum": [
+              "gebieden",
+              "punten",
+              "lijnen"
+            ]
+          },
+          "paint": {
+            "$ref": "#/components/schemas/Paint"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/Layout"
+          },
+          "filter": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "Paint": {
+        "type": "object",
+        "properties": {
+          "line-color": {
+            "type": "string"
+          },
+          "line-opacity": {
+            "type": "number",
+            "format": "double"
+          },
+          "line-width": {
+            "type": "number",
+            "format": "double"
+          },
+          "line-dasharray": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "icon-color": {
+            "type": "string"
+          },
+          "icon-halo-color": {
+            "type": "string"
+          },
+          "icon-halo-width": {
+            "type": "number",
+            "format": "double"
+          },
+          "fill-pattern": {
+            "type": "string"
+          },
+          "fill-color": {
+            "type": "string"
+          },
+          "fill-opacity": {
+            "type": "number",
+            "format": "double"
+          },
+          "circle-radius": {
+            "type": "number",
+            "format": "double"
+          },
+          "circle-color": {
+            "type": "string"
+          },
+          "circle-opacity": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "Layout": {
+        "type": "object",
+        "properties": {
+          "icon-image": {
+            "type": "string"
+          },
+          "iconSize": {
+            "type": "number",
+            "format": "double"
+          },
+          "iconRotation": {
+            "type": "string",
+            "format": "integer"
+          },
+          "line-cap": {
+            "type": "string"
+          }
+        }
+      },
+      "SymbolisatieItem": {
+        "title": "SymbolisatieItem",
+        "required": [
+          "symboolcode"
+        ],
+        "type": "object",
+        "properties": {
+          "symboolcode": {
+            "title": "symboolcode",
+            "type": "string"
+          }
+        }
+      },
+      "TilingResponse": {
+        "type": "object",
+        "properties": {
+          "tijdstip": {
+            "type": "string",
+            "description": "UTC timestamp when the latest tiling was completed.",
+            "format": "date-time",
+            "example": "2022-07-07T11:34:01Z"
+          }
+        },
+        "description": "Tiling response object"
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          }
+        },
+        "description": "Health"
+      },
+      "Info": {
+        "required": [
+          "app"
+        ],
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "stopVersion": {
+                "type": "string"
+              },
+              "cimowVersion": {
+                "type": "string"
+              },
+              "imopVersion": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "description": "Info"
+      },
+      "Page": {
+        "required": [
+          "number",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "example": 20
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "example": 0
+          }
+        },
+        "description": "Info voor paginering"
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Absolute URI dat het probleemtype identificeert.\n",
+            "format": "uri",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string",
+            "description": "Een korte samenvatting van het probleemtype bedoeld voor ontwikkelaars.\n"
+          },
+          "status": {
+            "maximum": 600,
+            "exclusiveMaximum": true,
+            "minimum": 100,
+            "type": "integer",
+            "description": "De HTTP statuscode gegenereerd door de server waar het probleem zich voordoet.\n",
+            "format": "int32",
+            "example": 503
+          },
+          "detail": {
+            "type": "string",
+            "description": "Mens-leesbare uitleg van dit specifieke probleem.\n",
+            "example": "Geen verbinding met de database"
+          },
+          "instance": {
+            "type": "string",
+            "description": "Absolute URI dat dit specifieke probleem identificeert.\n",
+            "format": "uri"
+          }
+        },
+        "description": "Standaardformaat (`application/problem+json`) voor probleemdetails in HTTP API's (RFC 7807)."
+      },
+      "Links": {
+        "type": "object",
+        "properties": {
+          "self": {
+            "type": "object",
+            "properties": {
+              "href": {
+                "$ref": "#/components/schemas/Href"
+              }
+            },
+            "description": "uri van de api aanroep die tot dit resultaat heeft geleid"
+          }
+        }
+      },
+      "Href": {
+        "type": "string",
+        "format": "uri",
+        "example": "datapunt.voorbeeldgemeente.nl/api/resourcename/123456789"
+      }
+    },
+    "responses": {
+      "NotFound": {
+        "description": "Not found",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotAcceptable": {
+        "description": "Not acceptable",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "PreconditionFailed": {
+        "description": "Precondition failed",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "Unprocessable entity.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "geldigOp": {
+        "name": "geldigOp",
+        "in": "query",
+        "description": "Een tijdreisparameter langs de geldigheids-tijdsas.  Deze tijdreis toont de versie van het object die op de opgegeven datum materieel geldig is.  Wanneer deze parameter niet opgegeven wordt, dan wordt een tijdreisvraag gesteld met als parameter 'vandaag'. Een gecombineerde tijdreisvraag langs 'geldigOp' en 'inWerkingOp' geeft de versie van het object die op de opgegeven datum juridisch geldig is. De tijdreisparameter wordt doorgegeven aan onderliggende hal-links.\n",
+        "required": false,
+        "style": "form",
+        "explode": true,
+        "schema": {
+          "type": "string",
+          "format": "date",
+          "example": "2020-05-09"
+        }
+      },
+      "inWerkingOp": {
+        "name": "inWerkingOp",
+        "in": "query",
+        "description": "Een tijdreisparameter langs de juridische-werking-tijdsas.  Deze tijdreis toont de versie van het object die op de opgegeven datum juridisch in werking is.  Wanneer deze parameter niet opgegeven wordt, dan wordt een tijdreisvraag gesteld met als parameter 'vandaag'. Een gecombineerde tijdreisvraag langs 'geldigOp' en 'inWerkingOp' geeft de versie van het object die op de opgegeven datum juridisch geldig is. De tijdreisparameter wordt doorgegeven aan onderliggende hal-links.\n",
+        "required": false,
+        "style": "form",
+        "explode": true,
+        "schema": {
+          "type": "string",
+          "format": "date",
+          "example": "2020-05-08"
+        }
+      },
+      "beschikbaarOp": {
+        "name": "beschikbaarOp",
+        "in": "query",
+        "description": "Een tijdreisparameter langs de 'beschikbaar'-tijdsas.  Deze tijdreis toont de versie van het object die beschikbaar is op de opgegeven UTC datumtijd.  Wanneer deze parameter niet opgegeven wordt, dan wordt een tijdreisvraag gesteld met als parameter 'nu', d.w.z. de huidige UTC datumtijd. De tijdreisparameter wordt doorgegeven aan onderliggende hal-links.\n",
+        "required": false,
+        "style": "form",
+        "explode": true,
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2022-07-07T11:34:01Z"
+        }
+      },
+      "synchroniseerMetTileset": {
+        "name": "synchroniseerMetTileset",
+        "in": "query",
+        "description": "Voer een tijdreis uit langs de beschikbaarheids-as naar het moment dat de huidige tileset aangevraagd werd. Hiermee garandeer je dat de data die je opvraagt correspondeert met het kaartbeeld dat in de huidige tileset weergegeven wordt. Er kan een tijdreis uitgevoerd worden naar het moment van aanvragen van een van beide tilesets:\n  - normaal: tijdreis naar het aanvraagmoment van de tileset bij de actueel geldige gegevens;\n  - volledig: tijdreis naar het aanvraagmoment van de tileset bij alle gegevens, ook historische en niet meer geldige gegevens.\nCombineren van deze parameter met een expliciete tijdreis langs de beschikbaarOp tijdsas is niet mogelijk.  Wanneer beide parameters meegegeven worden, dan krijgt de expliciete beschikbaarOp-parameter voorrang boven deze parameter.\n",
+        "required": false,
+        "style": "form",
+        "explode": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "normaal",
+            "volledig"
+          ]
+        }
+      },
+      "tileset": {
+        "name": "tileset",
+        "in": "query",
+        "description": "Naam van de tileset waarvan het tijdstip van opgevraagd kan worden. Indien deze parameter niet opgegeven wordt is de default 'normaal'.\n",
+        "required": false,
+        "style": "form",
+        "explode": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "normaal",
+            "volledig"
+          ]
+        }
+      }
+    },
+    "headers": {
+      "X-Total-Count": {
+        "description": "Totaal aantal objecten.",
+        "required": false,
+        "style": "simple",
+        "explode": false,
+        "schema": {
+          "type": "integer",
+          "example": 100
+        }
+      },
+      "X-Pagination-Count": {
+        "description": "Totaal aantal pagina's.",
+        "required": false,
+        "style": "simple",
+        "explode": false,
+        "schema": {
+          "type": "integer",
+          "example": 3
+        }
+      },
+      "X-Pagination-Page": {
+        "description": "Huidige pagina.",
+        "required": false,
+        "style": "simple",
+        "explode": false,
+        "schema": {
+          "type": "integer",
+          "example": 1
+        }
+      },
+      "X-Pagination-Limit": {
+        "description": "Objecten per pagina.",
+        "required": false,
+        "style": "simple",
+        "explode": false,
+        "schema": {
+          "type": "integer",
+          "example": 3
+        }
+      }
+    }
+  }
+}

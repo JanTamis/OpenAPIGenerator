@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenAPIGenerator", "OpenAPIGenerator\OpenAPIGenerator\OpenAPIGenerator.csproj", "{569F6E06-9B5E-4114-A891-0F91F51928B4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenAPIGenerator.Sample", "OpenAPIGenerator\OpenAPIGenerator.Sample\OpenAPIGenerator.Sample.csproj", "{1C2197E1-C6DC-400A-9E82-ADDF54BC60EA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{569F6E06-9B5E-4114-A891-0F91F51928B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{569F6E06-9B5E-4114-A891-0F91F51928B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{569F6E06-9B5E-4114-A891-0F91F51928B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{569F6E06-9B5E-4114-A891-0F91F51928B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1C2197E1-C6DC-400A-9E82-ADDF54BC60EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1C2197E1-C6DC-400A-9E82-ADDF54BC60EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1C2197E1-C6DC-400A-9E82-ADDF54BC60EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1C2197E1-C6DC-400A-9E82-ADDF54BC60EA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

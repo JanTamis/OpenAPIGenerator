@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<RootNamespace>OpenAPIGenerator.Sample</RootNamespace>
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\OpenAPIGenerator\OpenAPIGenerator.csproj" 
+		                  OutputItemType="Analyzer" 
+		                  ReferenceOutputAssembly="false"/>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Remove="DDD.UbiquitousLanguageRegistry.txt"/>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="DSO.json" />
+	  <AdditionalFiles Include="DSO.json" />
+	</ItemGroup>
+
+</Project>
