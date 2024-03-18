@@ -1,0 +1,158 @@
+{
+	"swagger": "2.0",
+	"info": {
+		"description": "\nStarter API with Client ID provides users an easy start to understand Rabobank APIs and gives you access to a basic IBAN validator.\n\n<div class=\"apiDocsBlock apiDocsBlock--warning \">\n       <div class=\"apiDocsBlock__inner\">\n            <span class=\"apiDocsBlock__icon\" aria-hidden=\"true\"></span>\n            <div class=\"apiDocsBlock__content\">\n                <p>You must not use your own IBAN  for the API request.</p>\n            </div>\n       </div>\n  </div>\n\nThis API aims to illustrate the workings of Client ID security.\n\n## **Before you begin**\nMake sure you have a working sandbox account in the [Rabobank developer portal](https://developer.rabobank.nl/). Read [Get Started](https://developer.rabobank.nl/get-started) to set up an account and register an **Application**.\n<br>\n\n ## **Using the API**\nAfter your account set up is complete, subscribe **Starter APIs** to your application.\n\n## **Requests**\n\nInitiate a request for **Starter API with Client ID** using the Client ID generated while  [Registering your application](https://developer.rabobank.nl/get-started#register).\n\n ```\ncurl --request GET \\\n  --url https://apin-sandbox.rabobank.nl/openapi/sandbox/tutorials/accounts/ibans/NL82RABO1108003001 \\\n  --header 'X-IBM-Client-Id: your client id' \\\n  --header 'accept: application/json'   \n ```\n\n ## **Response**\n<br>\n\n ```\n  {\n     \"message\": \"VALID IBAN\",\n     \"iban\": \"NL82RABO1108003001\"\n  }  \n```\n## **Sample IBANs:**\n\n| IBAN                    | validity     |\n|-----------------        |--------------|\n| NL82RABO1108003001       | VALID       |\n| NL80RABO1127000002       | VALID       |\n| GB68500105178297336485   | INVALID     |\n| NL53RABO1108001008       | INVALID     |   ",
+		"version": "1.0.12",
+		"title": "Starter API with Client ID",
+		"x-ibm-name": "starter-api-client-id-sandbox"
+	},
+	"host": "apin-sandbox.rabobank.nl",
+	"basePath": "/openapi/sandbox/tutorials/accounts",
+	"schemes": [
+		"https"
+	],
+	"security": [
+		{
+			"clientId": []
+		}
+	],
+	"paths": {
+		"/ibans/{iban}": {
+			"get": {
+				"summary": "checks whether provided iban is valid",
+				"description": "Validates and returns  provided International Bank Account Number (IBAN)  with message either Valid Iban or Invalid Iban.",
+				"operationId": "requestIbanCheck",
+				"consumes": [
+					"application/json"
+				],
+				"produces": [
+					"application/json"
+				],
+				"parameters": [
+					{
+						"name": "iban",
+						"in": "path",
+						"description": "IBAN - An International Bank Account Number is used worldwide to identify individual accounts.",
+						"required": true,
+						"type": "string",
+						"x-example": "NL82RABO1108003001"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "IBAN is successfully validated",
+						"schema": {
+							"$ref": "#/definitions/ApiValidationResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request.",
+						"schema": {
+							"$ref": "#/definitions/ValidationErrorResponse"
+						}
+					},
+					"401": {
+						"description": "Unauthorized\n",
+						"schema": {
+							"$ref": "#/definitions/HttpResponseError400"
+						}
+					},
+					"500": {
+						"description": "Internal Server Error\n",
+						"schema": {
+							"$ref": "#/definitions/HttpResponseError500"
+						}
+					}
+				}
+			}
+		}
+	},
+	"securityDefinitions": {
+		"clientId": {
+			"description": "ClientId as provided by the Rabobank developer portal.",
+			"type": "apiKey",
+			"name": "X-IBM-Client-Id",
+			"in": "header"
+		}
+	},
+	"definitions": {
+		"ApiValidationResponse": {
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string",
+					"example": "VALID IBAN"
+				},
+				"iban": {
+					"type": "string",
+					"example": "NL82RABO1108003001"
+				}
+			}
+		},
+		"ValidationErrorResponse": {
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string",
+					"example": "INVALID IBAN"
+				},
+				"iban": {
+					"type": "string",
+					"example": "GB68500105178297336485"
+				}
+			}
+		},
+		"HttpResponseError500": {
+			"type": "object",
+			"properties": {
+				"errorCode": {
+					"type": "string",
+					"example": "500"
+				},
+				"errorMessage": {
+					"type": "string",
+					"example": "Technical Error"
+				}
+			}
+		},
+		"HttpResponseError400": {
+			"type": "object",
+			"properties": {
+				"httpCode": {
+					"type": "string",
+					"example": "401"
+				},
+				"httpMessage": {
+					"type": "string",
+					"example": "Unauthorized"
+				},
+				"moreInformation": {
+					"type": "string",
+					"example": "Application is not registered with mutual tls"
+				}
+			}
+		}
+	},
+	"x-ibm-configuration": {
+		"cors": {
+			"enabled": false
+		},
+		"enforced": true,
+		"phase": "realized",
+		"type": "rest",
+		"testable": false,
+		"application-authentication": {
+			"certificate": false
+		},
+		"servers": [
+			{
+				"url": "https://apin-sandbox.rabobank.nl/openapi/sandbox/tutorials/accounts",
+				"description": "",
+				"type": [
+					"production",
+					"development"
+				]
+			}
+		]
+	}
+}
