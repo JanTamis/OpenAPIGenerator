@@ -27,6 +27,10 @@
 		                  PrivateAssets="all" 
 		                  GeneratePathProperty="true" />
 
+		<PackageReference Include="System.Text.Encodings.Web" Version="8.0.0"
+		                  PrivateAssets="all"
+		                  GeneratePathProperty="true"/>
+
 		<None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" 
 		      Pack="true" 
 		      PackagePath="analyzers/dotnet/cs" 
@@ -43,6 +47,20 @@
 		<ItemGroup>
 			<TargetPathWithTargetPlatformMoniker
 							Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\System.Text.Json.dll"
+							IncludeRuntimeDependency="false"/>
+		</ItemGroup>
+	</Target>
+
+	<PropertyGroup>
+		<GetTargetPathDependsOn>
+			$(GetTargetPathDependsOn);GetDependencyTargetPaths2
+		</GetTargetPathDependsOn>
+	</PropertyGroup>
+
+	<Target Name="GetDependencyTargetPaths2">
+		<ItemGroup>
+			<TargetPathWithTargetPlatformMoniker
+							Include="$(PkgSystem_Text_Encodings_Web)\lib\netstandard2.0\System.Text.Encodings.Web.dll"
 							IncludeRuntimeDependency="false"/>
 		</ItemGroup>
 	</Target>

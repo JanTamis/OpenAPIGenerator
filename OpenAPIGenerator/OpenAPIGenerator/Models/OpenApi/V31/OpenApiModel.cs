@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace OpenAPIGenerator.Model;
+namespace OpenAPIGenerator.Models.OpenApi.V31;
 
 /// <summary>
 /// For OpenApi V3.1

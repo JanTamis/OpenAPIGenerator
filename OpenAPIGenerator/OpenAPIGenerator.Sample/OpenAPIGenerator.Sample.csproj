@@ -19,7 +19,17 @@
 
 	<ItemGroup>
 	  <None Remove="DSO.json" />
-	  <AdditionalFiles Include="DSO.json" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="System.Text.Encodings.Web" Version="8.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="Starter.json" />
+	  <AdditionalFiles Include="Starter.json" />
+	  <None Remove="account.json" />
+	  <AdditionalFiles Include="account.json" />
 	</ItemGroup>
 
 </Project>

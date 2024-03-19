@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace OpenAPIGenerator.Model;
+namespace OpenAPIGenerator.Models.OpenApi.V31;
 
 public class XmlModel
 {
