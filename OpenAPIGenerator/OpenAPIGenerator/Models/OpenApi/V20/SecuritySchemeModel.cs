@@ -15,7 +15,8 @@ public class SecuritySchemeModel
 	public string Name { get; set; }
 	
 	[JsonPropertyName("in")]
-	public string In { get; set; }
+	[JsonConverter(typeof(JsonStringEnumConverter))]
+	public ParameterLocation In { get; set; }
 	
 	[JsonPropertyName("flow")]
 	public string Flow { get; set; }

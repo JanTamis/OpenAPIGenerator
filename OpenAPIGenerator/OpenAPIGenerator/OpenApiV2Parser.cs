@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 
 namespace OpenAPIGenerator.Models.OpenApi.V20;
 
@@ -9,6 +10,9 @@ public static class OpenApiV2Parser
 	public static string Parse(SwaggerModel model, string rootNamespace)
 	{
 		var typeName = Titleize(model.Info.Title);
+
+		var defaultHeaders = model.SecurityDefinitions
+			.Where(w => w.Value.In == ParameterLocation.Header);
 
 		return $$"""
 			using System.Net;
@@ -28,11 +32,15 @@ public static class OpenApiV2Parser
 			{
 				private readonly HttpClient _client;
 				
-				public {{typeName}}()
+				public {{typeName}}({{String.Join(", ", defaultHeaders.Select(s => $"string {s.Key}"))}})
 				{
 					_client = new HttpClient()
 					{
 						BaseAddress = new Uri("{{model.Schemes[0]}}://{{model.Host}}{{model.BasePath}}"),
+						DefaultRequestHeaders = 
+						{
+							{{String.Join("\n\t\t\t\t", defaultHeaders.Select(s => $$"""{ "{{s.Key}}", {{s.Key}} }"""))}}
+						}
 					};
 				}
 				
@@ -46,7 +54,7 @@ public static class OpenApiV2Parser
 			}
 			""";
 	}
-	
+
 	public static string ParseObject(string name, SchemaModel schema, string defaultNamespace)
 	{
 		if (schema.Enum?.Any() ?? false)
@@ -64,10 +72,10 @@ public static class OpenApiV2Parser
 		}
 
 
-		var properties = schema.Properties?.SelectMany<KeyValuePair<string, SchemaModel>, string>(s =>
+		var properties = schema.Properties?.Select<KeyValuePair<string, SchemaModel>, string>(s =>
 		{
 			var type = s.Value.Type ?? s.Value.Ref.Split('/').Last();
-			
+
 			if (s.Value.Type == "array")
 			{
 				type = s.Value.Items.Type ?? s.Value.Items.Ref.Split('/').Last() + "[]";
@@ -75,19 +83,15 @@ public static class OpenApiV2Parser
 
 			if (String.IsNullOrWhiteSpace(s.Value.Description))
 			{
-				return
-				[
-					$"public {Titleize(type)} {Titleize(s.Key)} {{ get; set; }}\n\n"
-				];
+				return $"public {Titleize(type)} {Titleize(s.Key)} {{ get; set; }}";
 			}
 
-			return
-			[
-				$"/// <summary> {s.Value.Description.Replace("\n", "\n\t/// ")} </summary>\n",
-				$"public {Titleize(type)} {Titleize(s.Key)} {{ get; set; }}\n\n"
-			];
+			return $$"""
+			/// <summary> {{s.Value.Description.Replace("\n", "\n\t/// ")}} </summary>
+			public {{Titleize(type)}} {{Titleize(s.Key)}} { get; set; }
+			""";
 		});
-		
+
 		return $$"""
 			using System;
 			
@@ -95,7 +99,7 @@ public static class OpenApiV2Parser
 			
 			public sealed class {{name}}
 			{
-				{{String.Join("\t", properties ?? [])}}
+				{{String.Join("\n\n\t", (properties ?? []).Select(s => s.Replace("\n", "\n\t")))}}
 			}
 			""";
 	}
@@ -110,25 +114,64 @@ public static class OpenApiV2Parser
 				.First());
 
 			var getRequestPath = ParseRequestPath(requestPath, path.Get.Parameters);
+
 			var parameters = path.Get.Parameters
 				.Select(s => $"/// <param name=\"{s.Name.Replace('-', '_')}\">{s.Description.Replace("\n", "\n/// ")}</param>");
 
-			yield return $$"""
+			var headers = path.Get.Parameters
+				.Where(w => w.In == ParameterLocation.Header)
+				.Select(s =>
+				{
+					var name = s.Name.Replace('-', '_');
+
+					if (!s.Required)
+					{
+						return $$"""
+						if ({{name}} != null)
+							{
+								request.Headers.Add("{{s.Name}}", {{name}});
+							}
+						""";
+					}
+
+					return $"request.Headers.Add(\"{s.Name}\", {name});";
+				});
+
+			if (headers.Any())
+			{
+				yield return $$"""
 				/// <summary>
 				/// {{path.Get.Summary.Replace("\n", "\n/// ")}}
 				/// </summary>
 				{{String.Join("\n", parameters)}}
-				public async Task<{{resultType}}> {{Titleize(path.Get.OperationId)}}Async({{String.Concat((path.Get.Parameters).Select(ParseParameter))}}CancellationToken token = default)
+				public async Task<{{resultType}}?> {{Titleize(path.Get.OperationId)}}Async({{String.Concat((path.Get.Parameters).Select(ParseParameter))}}CancellationToken token = default)
 				{
 					using var request = new HttpRequestMessage(HttpMethod.Get, $"{{getRequestPath}}");
 					
-					{{String.Join("\n\t", path.Get.Parameters.Where(w => w.In == ParameterLocation.Header).Select(s => $"request.Headers.Add(\"{s.Name}\", {s.Name.Replace('-', '_')});"))}}
+					{{String.Join("\n\t", headers)}}
 					
 					using var response = await _client.SendAsync(request, token);
 					
 					{{ParseResponse(path.Get.Responses).Replace("\n", "\n\t")}}
 				}
 				""";
+			}
+			else
+			{
+				yield return $$"""
+				/// <summary>
+				/// {{path.Get.Summary.Replace("\n", "\n/// ")}}
+				/// </summary>
+				{{String.Join("\n", parameters)}}
+				public async Task<{{resultType}}?> {{Titleize(path.Get.OperationId)}}Async({{String.Concat((path.Get.Parameters).Select(ParseParameter))}}CancellationToken token = default)
+				{
+					using var response = await _client.GetAsync($"{{getRequestPath}}", token);
+					
+					{{ParseResponse(path.Get.Responses).Replace("\n", "\n\t")}}
+				}
+				""";
+			}
+			
 		}
 	}
 
@@ -139,45 +182,51 @@ public static class OpenApiV2Parser
 		if (!responses.ContainsKey("default"))
 		{
 			defaultEnumerable = defaultEnumerable.Append("""
-				default:
-					{
-						return default;
-					}
+				_ => throw new InvalidOperationException("Unknown status code has been returned."),
 				""");
 		}
 
+		var maxLength = responses
+			.Select(s => ((System.Net.HttpStatusCode)Int32.Parse(s.Key)).ToString().Length)
+			.Max();
+
 		return $$"""
-			switch (response.StatusCode)
+			return response.StatusCode switch
 			{
 				{{String.Join("\n\t", responses
-					.Where(w => w.Value.Schema is not null)
-					.Select(s => (s.Key, (s.Value)))
 					.Select(s =>
 					{
-						var type = Titleize((s.Item2.Schema.Ref ?? s.Item2.Schema.Type).Split('/').Last());
+						var code = 0;
+						var result = String.Empty;
 
-						if (Int32.TryParse(s.Key, out var code) && code is >= 200 and <= 299)
+						if (s.Value.Schema is null && Int32.TryParse(s.Key, out code))
 						{
+							result = ((System.Net.HttpStatusCode)code).ToString();
+
 							return $$"""
-								case HttpStatusCode.{{(System.Net.HttpStatusCode) code}}:
-									{
-										return await response.Content.ReadFromJsonAsync<{{type}}>(token).ConfigureAwait(false);
-									}
+							HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> throw new ApiException("{{s.Value.Description.TrimEnd().Replace("\n", @"\n")}}", response),
+							""";
+						}
+
+						var type = Titleize((s.Value.Schema.Ref ?? s.Value.Schema.Type).Split('/').Last());
+
+						if (Int32.TryParse(s.Key, out code) && code is >= 200 and <= 299)
+						{
+							result = ((System.Net.HttpStatusCode)code).ToString();
+
+							return $$"""
+								HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> await response.Content.ReadFromJsonAsync<{{type}}>(token),
 								""";
 						}
 
+						result = ((System.Net.HttpStatusCode)code).ToString();
+
 						return $$"""
-							{{ParseCode(s.Item1)}}
-								{
-									var result = await response.Content.ReadFromJsonAsync<{{type}}>(token).ConfigureAwait(false);
-									
-									throw new ApiException<{{type}}>("{{s.Item2.Description.Replace("\n", @"\n")}}", response, result);
-								}
+							HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> throw new ApiException<{{type}}>("{{s.Value.Description.TrimEnd().Replace("\n", @"\n")}}", response, await response.Content.ReadFromJsonAsync<{{type}}>(token)),
 							""";
 					})
-					.Concat(defaultEnumerable))
-				}}
-			}
+					.Concat(defaultEnumerable))}}
+			};
 			""";
 	}
 
@@ -198,12 +247,12 @@ public static class OpenApiV2Parser
 	{
 		if (String.Equals("default", code, StringComparison.OrdinalIgnoreCase))
 		{
-			return "default:";
+			return "_ =>";
 		}
 
 		if (Int32.TryParse(code, out var result))
 		{
-			return $"case HttpStatusCode.{(System.Net.HttpStatusCode) result}:";
+			return $"HttpStatusCode.{(System.Net.HttpStatusCode)result} =>";
 		}
 
 		var start = String.Empty;

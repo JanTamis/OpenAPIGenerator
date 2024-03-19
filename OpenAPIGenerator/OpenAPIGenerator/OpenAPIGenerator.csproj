@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
@@ -16,25 +16,19 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" PrivateAssets="all" GeneratePathProperty="true" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0"/>
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.3.0"/>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.3.0" />
 		
-		<PackageReference Include="System.Text.Json" Version="8.0.1" 
-		                  PrivateAssets="all" 
-		                  GeneratePathProperty="true" />
+		<PackageReference Include="System.Text.Json" Version="8.0.1" PrivateAssets="all" GeneratePathProperty="true" />
 
-		<PackageReference Include="System.Text.Encodings.Web" Version="8.0.0"
-		                  PrivateAssets="all"
-		                  GeneratePathProperty="true"/>
+		<PackageReference Include="System.Text.Encodings.Web" Version="8.0.0" PrivateAssets="all" GeneratePathProperty="true" />
 
-		<None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" 
-		      Pack="true" 
-		      PackagePath="analyzers/dotnet/cs" 
-		      Visible="false" />
+		<None Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 
 	<PropertyGroup>
@@ -45,23 +39,9 @@
 
 	<Target Name="GetDependencyTargetPaths">
 		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker
-							Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\System.Text.Json.dll"
-							IncludeRuntimeDependency="false"/>
-		</ItemGroup>
-	</Target>
-
-	<PropertyGroup>
-		<GetTargetPathDependsOn>
-			$(GetTargetPathDependsOn);GetDependencyTargetPaths2
-		</GetTargetPathDependsOn>
-	</PropertyGroup>
-
-	<Target Name="GetDependencyTargetPaths2">
-		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker
-							Include="$(PkgSystem_Text_Encodings_Web)\lib\netstandard2.0\System.Text.Encodings.Web.dll"
-							IncludeRuntimeDependency="false"/>
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgSystem_Text_Json)\lib\netstandard2.0\System.Text.Json.dll" IncludeRuntimeDependency="false" />
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgSystem_Text_Encodings_Web)\lib\netstandard2.0\System.Text.Encodings.Web.dll" IncludeRuntimeDependency="false" />
+			<TargetPathWithTargetPlatformMoniker Include="$(PkgMicrosoft_Bcl_AsyncInterfaces)\lib\netstandard2.0\Microsoft.Bcl.AsyncInterfaces.dll" IncludeRuntimeDependency="false" />
 		</ItemGroup>
 	</Target>
 </Project>
