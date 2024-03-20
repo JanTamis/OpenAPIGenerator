@@ -1,3 +1,4 @@
+using OpenAPIGenerator.Enumerators;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -19,7 +20,8 @@ public class ParameterModel
 	public bool Required { get; set; }
 	
 	[JsonPropertyName("type")]
-	public string Type { get; set; }
+	[JsonConverter(typeof(JsonStringEnumConverter))]
+	public ParameterTypes Type { get; set; }
 	
 	[JsonPropertyName("format")]
 	public string Format { get; set; }

@@ -1,3 +1,4 @@
+using OpenAPIGenerator.Enumerators;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -127,14 +128,28 @@ public static class OpenApiV2Parser
 
 			var getRequestPath = ParseRequestPath(requestPath, path.Get.Parameters);
 
-			var parameters = path.Get.Parameters
+			var parametersComments = path.Get.Parameters
 				.Select(s => $"/// <param name=\"{s.Name.Replace('-', '_')}\">{s.Description.Replace("\n", "\n/// ")}</param>");
+
+			var parameters = String.Concat(path.Get.Parameters
+				.OrderByDescending(o => o.Required)
+				.Select(ParseParameter));
 
 			var headers = path.Get.Parameters
 				.Where(w => w.In == ParameterLocation.Header)
+				.OrderByDescending(o => o.Required)
 				.Select(s =>
 				{
 					var name = s.Name.Replace('-', '_');
+
+					if (s.Type != ParameterTypes.String || !String.IsNullOrEmpty(s.Format))
+					{
+						name = $"{name}.ToString()";
+					}
+					else if (s.Type == ParameterTypes.Binary)
+					{
+						name = $"Convert.ToBase64String({name});";
+					}
 
 					if (!s.Required)
 					{
@@ -155,8 +170,8 @@ public static class OpenApiV2Parser
 					/// <summary>
 					/// {{path.Get.Summary.Replace("\n", "\n/// ")}}
 					/// </summary>
-					{{String.Join("\n", parameters)}}
-					public async Task<{{resultType}}?> {{Titleize(path.Get.OperationId)}}Async({{String.Concat((path.Get.Parameters).Select(ParseParameter))}}CancellationToken token = default)
+					{{String.Join("\n", parametersComments)}}
+					public async Task<{{resultType}}?> {{Titleize(path.Get.OperationId)}}Async({{parameters}}CancellationToken token = default)
 					{
 						using var request = new HttpRequestMessage(HttpMethod.Get, $"{{getRequestPath}}");
 						
@@ -174,8 +189,8 @@ public static class OpenApiV2Parser
 					/// <summary>
 					/// {{path.Get.Summary.Replace("\n", "\n/// ")}}
 					/// </summary>
-					{{String.Join("\n", parameters)}}
-					public async Task<{{resultType}}?> {{Titleize(path.Get.OperationId)}}Async({{String.Concat((path.Get.Parameters).Select(ParseParameter))}}CancellationToken token = default)
+					{{String.Join("\n", parametersComments)}}
+					public async Task<{{resultType}}?> {{Titleize(path.Get.OperationId)}}Async({{parameters}}CancellationToken token = default)
 					{
 						using var response = await _client.GetAsync($"{{getRequestPath}}", token);
 						
@@ -244,46 +259,40 @@ public static class OpenApiV2Parser
 	private static string ParseParameter(ParameterModel parameter)
 	{
 		var name = parameter.Name;
-		var type = parameter.Type; //  ?? parameter.Ref.Split('/').Last();
 
 		if (String.IsNullOrWhiteSpace(name))
 		{
 			return String.Empty;
 		}
 
+		var type = parameter.Type switch
+		{
+			ParameterTypes.Integer => "int",
+			ParameterTypes.Long => "long",
+			ParameterTypes.Float => "float",
+			ParameterTypes.Double => "double",
+			ParameterTypes.String => "string",
+			ParameterTypes.Byte => "byte",
+			ParameterTypes.Binary => "ReadOnlySpan<byte>",
+			ParameterTypes.Boolean => "bool",
+			ParameterTypes.Date => "DateOnly",
+			ParameterTypes.DateTime => "DateTime",
+			ParameterTypes.Password => "string",
+			ParameterTypes.File => "Stream",
+			_ => "string",
+		};
+
+		if (parameter.Type == ParameterTypes.String && parameter.Format == "uuid")
+		{
+			type = "Guid";
+		}
+
+		if (!parameter.Required)
+		{
+			return $"{type}? {name.Replace('-', '_')} = null, ";
+		}
+
 		return $"{type} {name.Replace('-', '_')}, ";
-	}
-
-	private static string ParseCode(string code)
-	{
-		if (String.Equals("default", code, StringComparison.OrdinalIgnoreCase))
-		{
-			return "_ =>";
-		}
-
-		if (Int32.TryParse(code, out var result))
-		{
-			return $"HttpStatusCode.{(System.Net.HttpStatusCode) result} =>";
-		}
-
-		var start = String.Empty;
-		var end = String.Empty;
-
-		for (var i = 0; i < code.Length; i++)
-		{
-			if (Char.IsNumber(code[i]))
-			{
-				start += code[i];
-				end += code[i];
-			}
-			else
-			{
-				start += '0';
-				end += '9';
-			}
-		}
-
-		return $"case >= {start} and <= {end}:";
 	}
 
 	public static string? Titleize(string? source)

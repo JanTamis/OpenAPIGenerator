@@ -8,13 +8,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\OpenAPIGenerator\OpenAPIGenerator.csproj" 
-		                  OutputItemType="Analyzer" 
-		                  ReferenceOutputAssembly="false"/>
+		<ProjectReference Include="..\OpenAPIGenerator\OpenAPIGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Remove="DDD.UbiquitousLanguageRegistry.txt"/>
+		<None Remove="DDD.UbiquitousLanguageRegistry.txt" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -27,9 +25,9 @@
 
 	<ItemGroup>
 	  <None Remove="Starter.json" />
-	  <AdditionalFiles Include="Starter.json" />
+	  <AdditionalFiles Include="Openapi\Starter.json" />
 	  <None Remove="account.json" />
-	  <AdditionalFiles Include="account.json" />
+	  <AdditionalFiles Include="Openapi\account.json" />
 	</ItemGroup>
 
 </Project>
