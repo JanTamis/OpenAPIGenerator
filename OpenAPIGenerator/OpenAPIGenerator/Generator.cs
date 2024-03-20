@@ -104,7 +104,7 @@ public class Generator : IIncrementalGenerator
 			foreach (var item in model.Definitions)
 			{
 				var name = OpenApiV2.OpenApiV2Parser.Titleize(item.Key);
-				context.AddSource($"Models/{name}", OpenApiV2.OpenApiV2Parser.ParseObject(name, item.Value, rootNamespace));
+				context.AddSource($"Models/{OpenApiV2.OpenApiV2Parser.Titleize(name.TrimStart('_'))}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
 			}
 
 			// context.AddSource("UnprocessableEntity", "public class UnprocessableEntity {}");
