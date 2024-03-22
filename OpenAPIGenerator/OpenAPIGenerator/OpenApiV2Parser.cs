@@ -1,8 +1,8 @@
+using OpenAPIGenerator.Builder;
 using OpenAPIGenerator.Enumerators;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography.X509Certificates;
 
 namespace OpenAPIGenerator.Models.OpenApi.V20;
 
@@ -58,24 +58,31 @@ public static class OpenApiV2Parser
 
 	public static string ParseObject(string name, SchemaModel schema, string defaultNamespace)
 	{
+		var builder = new CodeStringBuilder();
+
+		builder
+				.AppendCode("using System;")
+				.AppendCode("using System.Text.Json.Serialization;")
+				.AppendCode("")
+				.AppendCode($"namespace {defaultNamespace}.Models;")
+				.AppendCode("")
+				.AppendCode("/// <summary>")
+				.AppendCode($"/// {schema.Description?.Trim()?.Replace("\n", "\n/// ")}")
+				.AppendCode("/// </summary>");
+
 		if (schema.Enum?.Any() ?? false)
 		{
-			return $$"""
-				using System;
+			builder.AppendBlock($"public enum {name}")
+				.AppendCode(schema.Enum.Select(s => $"{Titleize(s.ToString())},"));
+		}
+		else
+		{
+			var block = builder.AppendBlock($"public sealed class {Titleize(name)}");
 
-				namespace {{defaultNamespace}}.Models;
 
-				/// <summary> 
-				/// {{schema.Description?.Trim()?.Replace("\n", "\n/// ")}}
-				/// </summary>
-				public enum {{name}}
-				{
-					{{String.Join("\n\t", schema.Enum.Select(s => $"{Titleize(s.ToString())},"))}}
-				}
-				""";
 		}
 
-		var properties = schema.Properties?.Select<KeyValuePair<string, SchemaModel>, string>(s =>
+		var properties = schema.Properties?.Select(s =>
 		{
 			var type = s.Value.Type ?? s.Value.Ref.Split('/').Last();
 
@@ -100,6 +107,8 @@ public static class OpenApiV2Parser
 				public {{Titleize(type)}} {{Titleize(s.Key)}} { get; set; }
 				""";
 		});
+
+		return builder.ToString();
 
 		return $$"""
 			using System;
@@ -213,47 +222,51 @@ public static class OpenApiV2Parser
 		}
 
 		var maxLength = responses
-			.Select(s => ((System.Net.HttpStatusCode) Int32.Parse(s.Key)).ToString().Length)
+			.Select(s => ((System.Net.HttpStatusCode)Int32.Parse(s.Key)).ToString().Length)
 			.Max();
 
-		return $$"""
-			return response.StatusCode switch
+		var responseCodes = responses
+			.Select(s =>
 			{
-				{{String.Join("\n\t", responses
-					.Select(s =>
-					{
-						var code = 0;
-						var result = String.Empty;
+				var result = String.Empty;
 
-						if (s.Value.Schema is null && Int32.TryParse(s.Key, out code))
-						{
-							result = ((System.Net.HttpStatusCode) code).ToString();
+				if (s.Value.Schema is null && Int32.TryParse(s.Key, out int code))
+				{
+					result = ((System.Net.HttpStatusCode)code).ToString();
 
-							return $$"""
-								HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> throw new ApiException("{{s.Value.Description.TrimEnd().Replace("\n", @"\n")}}", response),
-								""";
-						}
+					return $$"""
+						HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> throw new ApiException("{{s.Value.Description.TrimEnd().Replace("\n", @"\n")}}", response),
+						""";
+				}
 
-						var type = Titleize((s.Value.Schema.Ref ?? s.Value.Schema.Type).Split('/').Last());
+				var type = Titleize((s.Value.Schema.Ref ?? s.Value.Schema.Type).Split('/').Last());
 
-						if (Int32.TryParse(s.Key, out code) && code is >= 200 and <= 299)
-						{
-							result = ((System.Net.HttpStatusCode) code).ToString();
+				if (Int32.TryParse(s.Key, out code) && code is >= 200 and <= 299)
+				{
+					result = ((System.Net.HttpStatusCode)code).ToString();
 
-							return $$"""
-								HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> await response.Content.ReadFromJsonAsync<{{type}}>(token),
-								""";
-						}
+					return $$"""
+						HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> await response.Content.ReadFromJsonAsync<{{type}}>(token),
+						""";
+				}
 
-						result = ((System.Net.HttpStatusCode) code).ToString();
+				result = ((System.Net.HttpStatusCode)code).ToString();
 
-						return $$"""
-							HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> throw new ApiException<{{type}}>("{{s.Value.Description.TrimEnd().Replace("\n", @"\n")}}", response, await response.Content.ReadFromJsonAsync<{{type}}>(token)),
-							""";
-					})
-					.Concat(defaultEnumerable))}}
-			};
-			""";
+				return $$"""
+					HttpStatusCode.{{result}} {{new string(' ', maxLength - result.Length)}}=> throw new ApiException<{{type}}>("{{s.Value.Description.TrimEnd().Replace("\n", @"\n")}}", response, await response.Content.ReadFromJsonAsync<{{type}}>(token)),
+					""";
+			})
+			.Concat(defaultEnumerable);
+
+		var builder = new CodeStringBuilder();
+		var block = builder.AppendBlock("return response.StatusCode switch", close: "};");
+
+		foreach (var response in responseCodes)
+		{
+			block.AddCode(response);
+		}
+
+		return builder.ToString();
 	}
 
 	private static string ParseParameter(ParameterModel parameter)
