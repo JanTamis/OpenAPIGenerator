@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Security.Cryptography.X509Certificates;
+using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Text;
 
 namespace OpenAPIGenerator.Builder;
@@ -8,7 +9,6 @@ namespace OpenAPIGenerator.Builder;
 public class CodeStringBuilder(int defaultIndent = 0)
 {
 	private readonly List<ICode> _codes = new List<ICode>();
-	private readonly int defaultIndent = Math.Max(defaultIndent, 0);
 
 	public CodeStringBuilder AppendCode(string code)
 	{
@@ -33,13 +33,24 @@ public class CodeStringBuilder(int defaultIndent = 0)
 		return block;
 	}
 
+	public void AddBlocks(IEnumerable<string> blocks)
+	{
+		_codes.AddRange(blocks.Select(s =>
+		{
+			var block = new Block();
+			block.AppendCode(s);
+
+			return block;
+		}));
+	}
+
 	public override string ToString()
 	{
 		var builder = new StringBuilder();
 
 		for (var i = 0; i < _codes.Count; i++)
 		{
-			_codes[i].Append(builder, defaultIndent, i == 0);
+			_codes[i].Append(builder, defaultIndent, i != 0 ? _codes[i - 1] : null);
 		}
 
 		return builder.ToString();
@@ -54,7 +65,7 @@ public class Block : ICode
 	public string Open { get; set; }
 	public string Close { get; set; }
 
-	public Block AddCode(string code)
+	public Block AppendCode(string code)
 	{
 		_codes.Add(new Line
 		{
@@ -68,7 +79,7 @@ public class Block : ICode
 	{
 		foreach (var item in code)
 		{
-			AddCode(item);
+			AppendCode(item);
 		}
 
 		return this;
@@ -87,42 +98,54 @@ public class Block : ICode
 		return block;
 	}
 
-	public void Append(StringBuilder builder, int indent, bool isFirst)
+	public void AddBlocks(IEnumerable<string?> blocks)
 	{
-		if (!String.IsNullOrWhiteSpace(Header))
+		_codes.AddRange(blocks
+			.Where(w => !String.IsNullOrEmpty(w))
+			.Select(s =>
+			{
+				var block = new Block();
+				block.AppendCode(s);
+
+				return block;
+			}));
+	}
+
+	public void Append(StringBuilder builder, int indent, ICode? previous)
+	{
+		if (previous != null)
 		{
 			builder.AppendLine();
-			builder.Append('\t', Math.Max(0, indent - 1));
-			builder.Append(Header);
 		}
 
-		builder.AppendLine();
-		builder.Append('\t', Math.Max(0, indent - 1));
-		builder.Append(Open);
+		builder.AppendIndented(Header, indent);
+		builder.AppendIndented(Open, indent);
 
 		for (var i = 0; i < _codes.Count; i++)
 		{
-			if (_codes[i] is Block block)
-			{
-				if (i != 0)
-				{
-					builder.AppendLine();
-				}
-				block.Append(builder, indent + 1, false);
-			}
-			else if (_codes[i] is Line line)
+			if (_codes[i] is Line)
 			{
 				if (i != 0 && _codes[i - 1] is Block)
 				{
 					builder.AppendLine();
 				}
-				line.Append(builder, indent + 1, false);
 			}
+			else if (i != 0)
+			{
+				builder.AppendLine();
+			}
+
+			if (String.IsNullOrEmpty(Open) && String.IsNullOrEmpty(Close))
+			{
+				_codes[i].Append(builder, indent, i != 0 ? _codes[i - 1] : this);
+			}
+			else
+			{
+				_codes[i].Append(builder, indent + 1, i != 0 ? _codes[i - 1] : this);
+			}			
 		}
 
-		builder.AppendLine();
-		builder.Append('\t', Math.Max(0, indent - 1));
-		builder.Append(Close);
+		builder.AppendIndented(Close, indent);
 	}
 }
 
@@ -130,14 +153,29 @@ public class Line : ICode
 {
 	public string Code { get; set; }
 
-	public void Append(StringBuilder builder, int indent, bool isFirst)
+	public void Append(StringBuilder builder, int indent, ICode? previous)
 	{
-		if (!isFirst)
+		if (previous != null || previous is Block)
 		{
 			builder.AppendLine();
 		}
-		
+
 		builder.Append('\t', indent);
-		builder.Append(Code);
+		builder.Append(Code.Replace("\n", "\n" + new string('\t', indent)));
+	}
+}
+
+public static class StringBuilderExtensions
+{
+	public static StringBuilder AppendIndented(this StringBuilder builder, string? text, int indentation)
+	{
+		if (!String.IsNullOrEmpty(text))
+		{
+			builder.AppendLine();
+			builder.Append('\t', Math.Max(0, indentation));
+			builder.Append(text);
+		}
+
+		return builder;
 	}
 }

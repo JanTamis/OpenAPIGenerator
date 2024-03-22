@@ -4,6 +4,6 @@ namespace OpenAPIGenerator.Builder
 {
 	public interface ICode
 	{
-		void Append(StringBuilder builder, int indent, bool isFirst);
+		void Append(StringBuilder builder, int indent, ICode? previous);
 	}
 }

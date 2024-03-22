@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using OpenApiV3 = OpenAPIGenerator.Models.OpenApi.V31;
 using OpenApiV2 = OpenAPIGenerator.Models.OpenApi.V20;
 
 namespace OpenAPIGenerator;

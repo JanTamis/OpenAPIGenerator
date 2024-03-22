@@ -3,6 +3,7 @@ using OpenAPIGenerator.Enumerators;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 
 namespace OpenAPIGenerator.Models.OpenApi.V20;
 
@@ -79,51 +80,34 @@ public static class OpenApiV2Parser
 		{
 			var block = builder.AppendBlock($"public sealed class {Titleize(name)}");
 
-
-		}
-
-		var properties = schema.Properties?.Select(s =>
-		{
-			var type = s.Value.Type ?? s.Value.Ref.Split('/').Last();
-
-			if (s.Value.Type == "array")
+			block.AddBlocks(schema.Properties?.Select(s =>
 			{
-				type = s.Value.Items.Type ?? s.Value.Items.Ref.Split('/').Last() + "[]";
-			}
+				var type = s.Value.Type ?? s.Value.Ref.Split('/').Last();
 
-			type = Titleize(type.TrimStart('_'));
+				if (s.Value.Type == "array")
+				{
+					type = s.Value.Items.Type ?? s.Value.Items.Ref.Split('/').Last() + "[]";
+				}
 
-			if (String.IsNullOrWhiteSpace(s.Value.Description))
-			{
-				return $$"""
+				type = Titleize(type.TrimStart('_'));
+
+				if (String.IsNullOrWhiteSpace(s.Value.Description))
+				{
+					return $$"""
 					[JsonPropertyName("{{s.Key}}")]
 					public {{Titleize(type)}} {{Titleize(s.Key)}} { get; set; }
 					""";
-			}
+				}
 
-			return $$"""
+				return $$"""
 				/// <summary> {{s.Value.Description.Replace("\n", "\n\t/// ")}} </summary>
 				[JsonPropertyName("{{s.Key}}")]
 				public {{Titleize(type)}} {{Titleize(s.Key)}} { get; set; }
 				""";
-		});
+			}) ?? []);
+		}
 
 		return builder.ToString();
-
-		return $$"""
-			using System;
-			using System.Text.Json.Serialization;
-
-			namespace {{defaultNamespace}}.Models;
-
-			/// <summary> 
-			/// {{schema.Description?.Trim()?.Replace("\n", "\n/// ")}} 
-			/// </summary>
-			public sealed class {{Titleize(name)}}
-			{
-				{{String.Join("\n\n\t", (properties ?? []).Select(s => s.Replace("\n", "\n\t")))}}
-			}
-			""";
 	}
 
 	private static IEnumerable<string> ParsePath(string requestPath, PathModel path, SwaggerModel root)
@@ -184,10 +168,9 @@ public static class OpenApiV2Parser
 					{
 						using var request = new HttpRequestMessage(HttpMethod.Get, $"{{getRequestPath}}");
 						
-						{{String.Join("\n\t", headers)}}
-						
-						using var response = await _client.SendAsync(request, token);
-						
+					{{ParseHeaders(path.Get.Parameters, 1)}}
+
+						using var response = await _client.SendAsync(request, token);						
 						{{ParseResponse(path.Get.Responses).Replace("\n", "\n\t")}}
 					}
 					""";
@@ -202,7 +185,6 @@ public static class OpenApiV2Parser
 					public async Task<{{resultType}}?> {{Titleize(path.Get.OperationId)}}Async({{parameters}}CancellationToken token = default)
 					{
 						using var response = await _client.GetAsync($"{{getRequestPath}}", token);
-						
 						{{ParseResponse(path.Get.Responses).Replace("\n", "\n\t")}}
 					}
 					""";
@@ -263,7 +245,7 @@ public static class OpenApiV2Parser
 
 		foreach (var response in responseCodes)
 		{
-			block.AddCode(response);
+			block.AppendCode(response);
 		}
 
 		return builder.ToString();
@@ -332,5 +314,39 @@ public static class OpenApiV2Parser
 		}
 
 		return result;
+	}
+
+	private static string ParseHeaders(List<ParameterModel> headers, int indentation)
+	{
+		var builder = new CodeStringBuilder(indentation);
+
+		foreach (var header in headers
+			.Where(w => w.In == ParameterLocation.Header)
+			.OrderByDescending(o => o.Required))
+		{
+			var name = header.Name.Replace('-', '_');
+
+			if (header.Type != ParameterTypes.String || !String.IsNullOrEmpty(header.Format))
+			{
+				name = $"{name}.ToString()";
+			}
+			else if (header.Type == ParameterTypes.Binary)
+			{
+				name = $"Convert.ToBase64String({name});";
+			}
+
+			if (!header.Required)
+			{
+				builder
+					.AppendBlock($"if ({name} != null)")
+					.AppendCode($"request.Headers.Add(\"{header.Name}\", {name});");
+			}
+			else
+			{
+				builder.AppendCode($"request.Headers.Add(\"{header.Name}\", {name});");
+			}
+		}
+
+		return builder.ToString();
 	}
 }

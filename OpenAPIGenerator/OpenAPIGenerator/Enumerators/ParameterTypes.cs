@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace OpenAPIGenerator.Enumerators;
+﻿namespace OpenAPIGenerator.Enumerators;
 
 public enum ParameterTypes
 {
