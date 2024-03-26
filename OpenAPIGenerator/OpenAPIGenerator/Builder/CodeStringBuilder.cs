@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text;
@@ -16,6 +17,16 @@ public class CodeStringBuilder(int defaultIndent = 0)
 		{
 			Code = code,
 		});
+
+		return this;
+	}
+
+	public CodeStringBuilder AppendCode(IEnumerable<string> code)
+	{
+		foreach (var item in code)
+		{
+			AppendCode(item);
+		}
 
 		return this;
 	}
@@ -55,6 +66,11 @@ public class CodeStringBuilder(int defaultIndent = 0)
 
 		return builder.ToString();
 	}
+
+	public static IEnumerable<string> GetLines(string code)
+	{
+		return code.Split('\n');
+	}
 }
 
 public class Block : ICode
@@ -85,7 +101,7 @@ public class Block : ICode
 		return this;
 	}
 
-	public Block AddBlock(string? header = null, string open = "{", string close = "}")
+	public Block AppendBlock(string? header = null, string open = "{", string close = "}")
 	{
 		var block = new Block
 		{
@@ -98,10 +114,9 @@ public class Block : ICode
 		return block;
 	}
 
-	public void AddBlocks(IEnumerable<string?> blocks)
+	public void AppendBlocks(IEnumerable<string?> blocks)
 	{
 		_codes.AddRange(blocks
-			.Where(w => !String.IsNullOrEmpty(w))
 			.Select(s =>
 			{
 				var block = new Block();
@@ -132,7 +147,7 @@ public class Block : ICode
 			}
 			else if (i != 0)
 			{
-				builder.AppendLine();
+				// builder.AppendLine();
 			}
 
 			if (String.IsNullOrEmpty(Open) && String.IsNullOrEmpty(Close))
@@ -142,7 +157,7 @@ public class Block : ICode
 			else
 			{
 				_codes[i].Append(builder, indent + 1, i != 0 ? _codes[i - 1] : this);
-			}			
+			}
 		}
 
 		builder.AppendIndented(Close, indent);
@@ -155,13 +170,15 @@ public class Line : ICode
 
 	public void Append(StringBuilder builder, int indent, ICode? previous)
 	{
-		if (previous != null || previous is Block)
-		{
-			builder.AppendLine();
-		}
+		// if (previous is not null or Block)
+		// {
+		// 	builder.AppendLine();
+		// }
 
-		builder.Append('\t', indent);
-		builder.Append(Code.Replace("\n", "\n" + new string('\t', indent)));
+		foreach (var line in CodeStringBuilder.GetLines(Code))
+		{
+			builder.AppendIndented(line, indent);
+		}
 	}
 }
 
@@ -169,12 +186,9 @@ public static class StringBuilderExtensions
 {
 	public static StringBuilder AppendIndented(this StringBuilder builder, string? text, int indentation)
 	{
-		if (!String.IsNullOrEmpty(text))
-		{
-			builder.AppendLine();
-			builder.Append('\t', Math.Max(0, indentation));
-			builder.Append(text);
-		}
+		builder.AppendLine();
+		builder.Append('\t', Math.Max(0, indentation));
+		builder.Append(text);
 
 		return builder;
 	}

@@ -25,9 +25,11 @@
 
 	<ItemGroup>
 	  <None Remove="Starter.json" />
-	  <AdditionalFiles Include="Openapi\Starter.json" />
+	  <AdditionalFiles Include="OpenApi\Starter.json" />
 	  <None Remove="account.json" />
-	  <AdditionalFiles Include="Openapi\account.json" />
+	  <AdditionalFiles Include="OpenApi\account.json" />
+	  <None Remove="OpenApi\Authenticate.json" />
+	  <AdditionalFiles Include="OpenApi\Authenticate.json" />
 	</ItemGroup>
 
 </Project>
