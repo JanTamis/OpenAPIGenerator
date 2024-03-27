@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using OpenAPIGenerator.Builder;
 using OpenApiV2 = OpenAPIGenerator.Models.OpenApi.V20;
 
 namespace OpenAPIGenerator;
@@ -29,7 +30,7 @@ public class Generator : IIncrementalGenerator
 			.FirstOrDefault() ?? String.Empty;
 
 		var rootNamespace = compilationAndFiles.compilation.AssemblyName ?? path.Split(Path.DirectorySeparatorChar).Last();
-
+		
 		context.AddSource("ApiException", $$""""
 			using System;
 			using System.Collections.Generic;
@@ -103,8 +104,11 @@ public class Generator : IIncrementalGenerator
 			foreach (var item in model.Definitions)
 			{
 				var name = OpenApiV2.OpenApiV2Parser.Titleize(item.Key);
+
 				context.AddSource($"Models/{OpenApiV2.OpenApiV2Parser.Titleize(name.TrimStart('_'))}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
 			}
+			
+			
 
 			// context.AddSource("UnprocessableEntity", "public class UnprocessableEntity {}");
 			context.AddSource(model.Info.Title.Replace(' ', '_'), OpenApiV2.OpenApiV2Parser.Parse(model, rootNamespace));
