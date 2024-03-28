@@ -39,7 +39,6 @@ public struct TypeBuilder : IBuilder
 			builder.AppendLine();
 		}
 		
-
 		if (!String.IsNullOrWhiteSpace(Namespace))
 		{
 			builder.AppendLine($"namespace {Namespace}");

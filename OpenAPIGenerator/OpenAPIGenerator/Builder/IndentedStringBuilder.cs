@@ -217,8 +217,8 @@ public class IndentedStringBuilder
 		using (var reader = new StringReader(value))
 		{
 			var first = true;
-			string? line;
-			while ((line = reader.ReadLine()) != null)
+			
+			while (reader.ReadLine() is { } line)
 			{
 				if (first)
 				{

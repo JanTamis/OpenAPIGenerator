@@ -108,8 +108,6 @@ public class Generator : IIncrementalGenerator
 				context.AddSource($"Models/{OpenApiV2.OpenApiV2Parser.Titleize(name.TrimStart('_'))}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
 			}
 			
-			
-
 			// context.AddSource("UnprocessableEntity", "public class UnprocessableEntity {}");
 			context.AddSource(model.Info.Title.Replace(' ', '_'), OpenApiV2.OpenApiV2Parser.Parse(model, rootNamespace));
 		}
