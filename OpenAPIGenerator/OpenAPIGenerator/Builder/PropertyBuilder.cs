@@ -30,7 +30,7 @@ public struct PropertyBuilder : IBuilder
 
 		builder.Append(AccessModifier.ToString().ToLower());
 		builder.Append(' ');
-		builder.Append(TypeBuilder.ToTypeName(TypeName));
+		builder.Append(BaseTypeBuilder.ToTypeName(TypeName));
 		builder.Append(' ');
 		builder.Append(ConvertToCamelCase(Name));
 		builder.Append(' ');
@@ -57,7 +57,7 @@ public struct PropertyBuilder : IBuilder
 		if (!String.IsNullOrWhiteSpace(DefaultValue))
 		{
 			builder.Append(" = ");
-			builder.Append(DefaultValue);
+			builder.Append(DefaultValue!);
 			builder.Append(';');
 		}
 	}
@@ -78,12 +78,12 @@ public struct PropertyBuilder : IBuilder
 
 		for (var i = 0; i < parts.Length; i++)
 		{
-			if (!string.IsNullOrEmpty(parts[i]))
+			if (!String.IsNullOrEmpty(parts[i]))
 			{
-				parts[i] = char.ToUpper(parts[i][0]) + parts[i].Substring(1);
+				parts[i] = Char.ToUpper(parts[i][0]) + parts[i].Substring(1);
 			}
 		}
 
-		return string.Join("", parts);
+		return String.Join("", parts);
 	}
 }

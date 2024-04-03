@@ -102,9 +102,12 @@ public static class OpenApiV2Parser
 
 	private static void ParsePath(string requestPath, PathModel path, CodeStringBuilder builder)
 	{
-		foreach (var (key, operation) in path.GetOperations())
+		foreach (var item in path.GetOperations())
 		{
-			ParseOperation(requestPath, operation, key, builder);
+			if (item.Value is not null)
+			{
+				ParseOperation(requestPath, item.Value, item.Key, builder);
+			}
 		}
 	}
 	private static void ParseOperation(string requestPath, OperationModel path, string operationName, CodeStringBuilder builder)

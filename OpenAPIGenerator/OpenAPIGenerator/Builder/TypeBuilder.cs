@@ -9,7 +9,9 @@ namespace OpenAPIGenerator.Builder;
 public class TypeBuilder : BaseTypeBuilder 
 {
 	public TypeKind TypeKind { get; set; } = TypeKind.Class;
+
 	public IEnumerable<PropertyBuilder> Properties { get; set; }
+	public IEnumerable<MethodBuilder> Methods { get; set; }
 
 	public TypeBuilder(string typeName)
 	{
@@ -70,6 +72,7 @@ public class TypeBuilder : BaseTypeBuilder
 		using (builder.Indent())
 		{
 			var properties = Properties.ToList();
+			var methods = Methods.ToList();
 
 			for (var i = 0; i < properties.Count; i++)
 			{
@@ -77,6 +80,22 @@ public class TypeBuilder : BaseTypeBuilder
 				builder.AppendLine();
 
 				if (i < properties.Count - 1)
+				{
+					builder.AppendLine();
+				}
+			}
+
+			if (properties.Count != 0 && methods.Count != 0)
+			{
+				builder.AppendLine();
+			}
+
+			for (var i = 0; i < methods.Count; i++)
+			{
+				methods[i].Build(builder);
+				builder.AppendLine();
+
+				if (i < methods.Count - 1)
 				{
 					builder.AppendLine();
 				}

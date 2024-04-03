@@ -57,7 +57,7 @@ public class MethodBuilder(string methodName) : IBuilder
 		}
 
 		builder.Append(' ');
-		builder.Append(methodName);
+		builder.Append(MethodName);
 		builder.Append('(');
 
 		var isFirst = true;

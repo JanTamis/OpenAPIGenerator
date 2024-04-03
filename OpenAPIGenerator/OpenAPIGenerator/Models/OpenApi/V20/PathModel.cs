@@ -34,8 +34,8 @@ public class PathModel
 
 	public IEnumerable<KeyValuePair<string, OperationModel?>> GetOperations()
 	{
-		yield return new(nameof(Get), Get);
-		yield return new(nameof(Post), Post);
+		yield return new (nameof(Get), Get);
+		yield return new (nameof(Post), Post);
 		yield return new (nameof(Put), Put);
 		yield return new (nameof(Delete), Post);
 		yield return new (nameof(Options), Options);
