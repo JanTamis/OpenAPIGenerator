@@ -178,8 +178,7 @@ public class IndentedStringBuilder
 		using (var reader = new StringReader(value))
 		{
 			var first = true;
-			string? line;
-			while ((line = reader.ReadLine()) != null)
+			while (reader.ReadLine() is { } line)
 			{
 				if (first)
 				{
@@ -212,7 +211,7 @@ public class IndentedStringBuilder
 	/// <param name="value">The string to append.</param>
 	/// <param name="skipFinalNewline">If <see langword="true" />, then the terminating new line is not added after the last line.</param>
 	/// <returns>This builder so that additional calls can be chained.</returns>
-	public virtual IndentedStringBuilder AppendLines(string value, Func<string, string> transformer, bool skipFinalNewline = false)
+	public virtual IndentedStringBuilder AppendLines(string value, Func<string, string> transformer, bool transformFirst = true, bool skipFinalNewline = false)
 	{
 		using (var reader = new StringReader(value))
 		{
@@ -223,14 +222,19 @@ public class IndentedStringBuilder
 				if (first)
 				{
 					first = false;
+					
+					if (transformFirst)
+					{
+						Append(transformer(line));
+					}
+					else
+					{
+						Append(line);
+					}
 				}
 				else
 				{
 					AppendLine();
-				}
-
-				if (line.Length != 0)
-				{
 					Append(transformer(line));
 				}
 			}

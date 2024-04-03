@@ -3,11 +3,11 @@ using System.Linq;
 
 namespace OpenAPIGenerator.Builder;
 
-public struct AttributeBuilder : IBuilder
+public readonly struct AttributeBuilder(string name, params string[] parameters) : IBuilder
 {
-	public string Name { get; set; }
-	public IEnumerable<ParameterBuilder> Parameters { get; set; }
-	
+	public string Name { get; } = name;
+	public IEnumerable<string> Parameters { get; } = parameters;
+
 	public void Build(IndentedStringBuilder builder)
 	{
 		var parameters = Parameters.ToList();
@@ -15,19 +15,20 @@ public struct AttributeBuilder : IBuilder
 		builder.Append('[');
 		builder.Append(Name);
 
-		if (parameters.Any())
+		if (parameters.Count > 0)
 		{
 			builder.Append('(');
-			parameters[0].Build(builder);
+			builder.Append(parameters[0]);
 			
-			foreach (var parameter in parameters.Skip(1))
+			for (var i = 1; i < parameters.Count; i++)
 			{
 				builder.Append(", ");
-				parameter.Build(builder);
+				builder.Append(parameters[i]);
 			}
 			
 			builder.Append(')');
-			builder.Append(']');
 		}
+
+		builder.Append(']');
 	}
 }

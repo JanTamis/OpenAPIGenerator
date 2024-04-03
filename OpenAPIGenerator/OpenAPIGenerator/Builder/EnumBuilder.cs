@@ -1,21 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
-using Microsoft.CodeAnalysis;
 
 namespace OpenAPIGenerator.Builder;
 
-public class TypeBuilder : BaseTypeBuilder 
+public class EnumBuilder : BaseTypeBuilder
 {
-	public TypeKind TypeKind { get; set; } = TypeKind.Class;
-	public IEnumerable<PropertyBuilder> Properties { get; set; }
-
-	public TypeBuilder(string typeName)
-	{
-		TypeName = typeName;
-	}
-
+	public IEnumerable<EnumMemberBuilder>? Members { get; set; } 
 	public override void Build(IndentedStringBuilder builder)
 	{
 		foreach (var @using in Usings)
@@ -53,15 +44,7 @@ public class TypeBuilder : BaseTypeBuilder
 		builder.Append(AccessModifier.ToString().ToLower());
 		builder.Append(' ');
 
-		builder.Append(TypeKind switch
-		{
-			TypeKind.Class     => "class",
-			TypeKind.Structure => "struct",
-			TypeKind.Interface => "interface",
-			_                  => throw new ArgumentOutOfRangeException(nameof(TypeKind), TypeKind, "Invalid type kind"),
-		});
-
-		builder.Append(' ');
+		builder.Append("enum ");
 		builder.Append(ToTypeName(TypeName));
 
 		builder.AppendLine();
@@ -69,17 +52,10 @@ public class TypeBuilder : BaseTypeBuilder
 
 		using (builder.Indent())
 		{
-			var properties = Properties.ToList();
-
-			for (var i = 0; i < properties.Count; i++)
+			foreach (var member in Members)
 			{
-				properties[i].Build(builder);
+				member.Build(builder);
 				builder.AppendLine();
-
-				if (i < properties.Count - 1)
-				{
-					builder.AppendLine();
-				}
 			}
 		}
 

@@ -1,10 +1,11 @@
 namespace OpenAPIGenerator.Builder;
 
-public class ParameterBuilder : IBuilder
+public readonly struct ParameterBuilder(string typeName, string name) : IBuilder
 {
-	public string TypeName { get; set; }
-	public string Name { get; set; }
-	
+	public string TypeName { get; } = typeName;
+	public string Name { get; } = name;
+	public string Documentation { get; }
+
 	public void Build(IndentedStringBuilder builder)
 	{
 		builder.Append(TypeName);
