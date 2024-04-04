@@ -1,8 +1,8 @@
-using OpenAPIGenerator.Builder;
 using OpenAPIGenerator.Enumerators;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OpenAPIGenerator.Builders;
 
 namespace OpenAPIGenerator.Models.OpenApi.V20;
 
@@ -17,10 +17,46 @@ public static class OpenApiV2Parser
 
 		var builder = new CodeStringBuilder(1);
 
+		var type = new TypeBuilder(model.Info.Title)
+		{
+			Usings =
+			[
+				"System.Net",
+				"System.Net.Http",
+				"System.Net.Http.Json",
+				"System",
+				"System.Threading",
+				"System.Threading.Tasks",
+				$"{rootNamespace}.Models",
+			],
+			Namespace = rootNamespace,
+			Summary = model.Info.Description,
+			Properties = [new PropertyBuilder("HttpClient", "Client")],
+			Constructors =
+			[
+				new ConstructorBuilder
+				{
+					Parameters = defaultHeaders
+						.Select(s => new ParameterBuilder("string", s.Key)),
+					Content =
+					[
+						Builder.Line("Client = new HttpClient()"),
+						Builder.Block(
+							Builder.Line($"BaseAddress = new Uri(\"{model.Schemes[0]}://{model.Host}{model.BasePath}\"),"),
+							Builder.Line("DefaultRequestHeaders =")),
+							Builder.Block(defaultHeaders
+								.Select(s => new LineBuilder($"{{\"{s.Key}\", {s.Key}}}"))),
+					]
+				}
+			]
+		};
+
 		foreach (var path in model.Paths)
 		{
 			ParsePath(path.Key, path.Value, builder);
 		}
+
+		return Builder.ToString(type);
 
 		return $$"""
 			using System.Net;
@@ -48,22 +84,22 @@ public static class OpenApiV2Parser
 						DefaultRequestHeaders =
 						{
 							{{String.Join("\n\t\t\t\t", defaultHeaders.Select(s => $$"""{ "{{s.Key}}", {{s.Key}} }"""))}}
-												}
-											};
-										}{{builder}}
-											
-										public void Dispose()
-										{
-											_client.Dispose();
-										}
-									}
+																								}
+																							};
+																						}{{builder}}
+																							
+																						public void Dispose()
+																						{
+																							_client.Dispose();
+																						}
+																					}
 			""";
 	}
 
 	public static string ParseObject(string name, SchemaModel schema, string defaultNamespace)
 	{
 		BaseTypeBuilder type;
-		
+
 		if (schema.Enum?.Any() ?? false)
 		{
 			type = new EnumBuilder()
@@ -94,7 +130,7 @@ public static class OpenApiV2Parser
 		];
 
 		var builder = new IndentedStringBuilder();
-		
+
 		type.Build(builder);
 
 		return builder.ToString();

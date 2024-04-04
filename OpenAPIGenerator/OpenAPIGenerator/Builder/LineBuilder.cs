@@ -1,6 +1,6 @@
-﻿namespace OpenAPIGenerator.Builder;
+﻿namespace OpenAPIGenerator.Builders;
 
-public readonly struct LineBuilder(string code) : IBuilder
+public class LineBuilder(string code) : IBuilder
 {
 	public string Code { get; } = code;
 

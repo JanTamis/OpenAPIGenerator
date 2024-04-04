@@ -4,18 +4,19 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public class TypeBuilder : BaseTypeBuilder 
 {
 	public TypeKind TypeKind { get; set; } = TypeKind.Class;
 
-	public IEnumerable<PropertyBuilder> Properties { get; set; }
-	public IEnumerable<MethodBuilder> Methods { get; set; }
+	public IEnumerable<PropertyBuilder> Properties { get; set; } = [];
+	public IEnumerable<ConstructorBuilder> Constructors { get; set; } = [];
+	public IEnumerable<MethodBuilder> Methods { get; set; } = [];
 
 	public TypeBuilder(string typeName)
 	{
-		TypeName = typeName;
+		TypeName = ToTypeName(typeName);
 	}
 
 	public override void Build(IndentedStringBuilder builder)
@@ -73,6 +74,7 @@ public class TypeBuilder : BaseTypeBuilder
 		{
 			var properties = Properties.ToList();
 			var methods = Methods.ToList();
+			var constructors = Constructors.ToList();
 
 			for (var i = 0; i < properties.Count; i++)
 			{
@@ -85,7 +87,25 @@ public class TypeBuilder : BaseTypeBuilder
 				}
 			}
 
-			if (properties.Count != 0 && methods.Count != 0)
+			if (properties.Count != 0 && constructors.Count != 0)
+			{
+				builder.AppendLine();
+			}
+			
+			for (var i = 0; i < constructors.Count; i++)
+			{
+				constructors[i].TypeName = TypeName;
+				
+				constructors[i].Build(builder);
+				builder.AppendLine();
+
+				if (i < constructors.Count - 1)
+				{
+					builder.AppendLine();
+				}
+			}
+
+			if (properties.Count != 0 && methods.Count != 0 && constructors.Count != 0)
 			{
 				builder.AppendLine();
 			}

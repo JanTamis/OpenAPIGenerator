@@ -1,6 +1,6 @@
 using System;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 [Flags]
 public enum PropertyModifier

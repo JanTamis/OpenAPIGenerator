@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public class CodeStringBuilder(int defaultIndent = 0)
 {

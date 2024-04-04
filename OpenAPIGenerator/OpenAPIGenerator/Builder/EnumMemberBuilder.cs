@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public class EnumMemberBuilder(string name, params AttributeBuilder[] attributes) : IBuilder
 {
@@ -10,7 +10,7 @@ public class EnumMemberBuilder(string name, params AttributeBuilder[] attributes
 
 	public void Build(IndentedStringBuilder builder)
 	{
-		foreach (var attribute in Attributes ?? [])
+		foreach (var attribute in Attributes)
 		{
 			attribute.Build(builder);
 			builder.AppendLine();

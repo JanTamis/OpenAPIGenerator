@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public abstract class BaseTypeBuilder : IBuilder
 {

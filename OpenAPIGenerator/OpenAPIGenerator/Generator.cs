@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using OpenAPIGenerator.Builder;
+using OpenAPIGenerator.Builders;
 using OpenApiV2 = OpenAPIGenerator.Models.OpenApi.V20;
 
 namespace OpenAPIGenerator;
@@ -105,7 +105,7 @@ public class Generator : IIncrementalGenerator
 			{
 				var name = OpenApiV2.OpenApiV2Parser.Titleize(item.Key);
 
-				context.AddSource($"Models/{TypeBuilder.ToTypeName(name)}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
+				context.AddSource($"Models/{BaseTypeBuilder.ToTypeName(name)}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
 			}
 			
 			// context.AddSource("UnprocessableEntity", "public class UnprocessableEntity {}");

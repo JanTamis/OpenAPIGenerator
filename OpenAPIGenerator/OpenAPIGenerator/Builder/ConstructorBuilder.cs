@@ -3,19 +3,16 @@ using System.Collections.Generic;
 
 namespace OpenAPIGenerator.Builders;
 
-public class MethodBuilder(string methodName) : IBuilder
+public class ConstructorBuilder : IBuilder
 {
-	public string MethodName { get; set; } = methodName;
+	public string TypeName { get; set; }
 	public string? Summary { get; set; }
-	public string ReturnType { get; set; } = "void";
-	
-	public bool IsAsync { get; set; }
-	
+
 	public AccessModifier AccessModifier { get; set; } = AccessModifier.Public;
 
 	public IEnumerable<AttributeBuilder>? Attributes { get; set; }
-	
 	public IEnumerable<ParameterBuilder> Parameters { get; set; }
+	
 	public IEnumerable<IBuilder> Content { get; set; }
 
 	public void Build(IndentedStringBuilder builder)
@@ -36,32 +33,17 @@ public class MethodBuilder(string methodName) : IBuilder
 				builder.AppendLine("</param>");
 			}
 		}
-		
+
 		builder.Append(AccessModifier.ToString().ToLower());
 		builder.Append(' ');
 
-		if (IsAsync)
-		{
-			if (ReturnType == "void")
-			{
-				builder.Append("async Task");
-			}
-			else
-			{
-				builder.Append("async Task<").Append(ReturnType).Append('>');
-			}
-		}
-		else
-		{
-			builder.Append(ReturnType);
-		}
 
 		builder.Append(' ');
-		builder.Append(MethodName);
+		builder.Append(TypeName);
 		builder.Append('(');
 
 		var isFirst = true;
-		
+
 		foreach (var parameter in Parameters)
 		{
 			if (!isFirst)
@@ -72,7 +54,7 @@ public class MethodBuilder(string methodName) : IBuilder
 			{
 				isFirst = false;
 			}
-			
+
 			parameter.Build(builder);
 		}
 

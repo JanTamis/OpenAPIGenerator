@@ -1,4 +1,4 @@
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public enum AccessModifier
 {

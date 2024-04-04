@@ -1,4 +1,4 @@
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public readonly struct ParameterBuilder(string typeName, string name) : IBuilder
 {

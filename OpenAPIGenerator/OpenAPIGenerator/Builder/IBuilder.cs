@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public interface IBuilder
 {

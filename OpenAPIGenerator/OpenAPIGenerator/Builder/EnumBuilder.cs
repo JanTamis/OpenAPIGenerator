@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public class EnumBuilder : BaseTypeBuilder
 {
@@ -48,17 +48,7 @@ public class EnumBuilder : BaseTypeBuilder
 		builder.Append(ToTypeName(TypeName));
 
 		builder.AppendLine();
-		builder.AppendLine("{");
 
-		using (builder.Indent())
-		{
-			foreach (var member in Members)
-			{
-				member.Build(builder);
-				builder.AppendLine();
-			}
-		}
-
-		builder.Append("}");
+		new BlockBuilder(Members).Build(builder);
 	}
 }

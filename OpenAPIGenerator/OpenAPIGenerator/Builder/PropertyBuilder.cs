@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace OpenAPIGenerator.Builder;
+namespace OpenAPIGenerator.Builders;
 
 public struct PropertyBuilder : IBuilder
 {
