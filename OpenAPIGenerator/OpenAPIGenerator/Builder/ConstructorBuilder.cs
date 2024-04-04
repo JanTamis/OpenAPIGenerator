@@ -36,9 +36,6 @@ public class ConstructorBuilder : IBuilder
 
 		builder.Append(AccessModifier.ToString().ToLower());
 		builder.Append(' ');
-
-
-		builder.Append(' ');
 		builder.Append(TypeName);
 		builder.Append('(');
 
@@ -58,8 +55,8 @@ public class ConstructorBuilder : IBuilder
 			parameter.Build(builder);
 		}
 
-		builder.Append(')');
-
+		builder.AppendLine(")");
+		
 		new BlockBuilder(Content).Build(builder);
 	}
 }

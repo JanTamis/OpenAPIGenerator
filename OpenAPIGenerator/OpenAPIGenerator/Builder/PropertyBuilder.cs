@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace OpenAPIGenerator.Builders;
 
-public struct PropertyBuilder : IBuilder
+public class PropertyBuilder : IBuilder
 {
 	public IEnumerable<AttributeBuilder> Attributes { get; set; }
 	public AccessModifier AccessModifier { get; set; } = AccessModifier.Public;
@@ -16,7 +16,7 @@ public struct PropertyBuilder : IBuilder
 
 	public PropertyBuilder(string typeName, string name)
 	{
-		Name = name;
+		Name = BaseTypeBuilder.ToTypeName(name);
 		TypeName = typeName;
 	}
 

@@ -14,7 +14,7 @@ public class IfBuilder(string condition, IEnumerable<IBuilder> content) : IBuild
 		builder.Append(Condition);
 		builder.AppendLine(")");
 
-		Builder.Block(content)
+		Builder.Block(Content)
 			.Build(builder);
 	}
 }

@@ -31,7 +31,7 @@ public static class OpenApiV2Parser
 			],
 			Namespace = rootNamespace,
 			Summary = model.Info.Description,
-			Properties = [new PropertyBuilder("HttpClient", "Client")],
+			Properties = [Builder.Property("HttpClient", "Client", modifier: PropertyModifier.Get)],
 			Constructors =
 			[
 				new ConstructorBuilder
@@ -43,9 +43,9 @@ public static class OpenApiV2Parser
 						Builder.Line("Client = new HttpClient()"),
 						Builder.Block(
 							Builder.Line($"BaseAddress = new Uri(\"{model.Schemes[0]}://{model.Host}{model.BasePath}\"),"),
-							Builder.Line("DefaultRequestHeaders =")),
+							Builder.Line("DefaultRequestHeaders ="),
 							Builder.Block(defaultHeaders
-								.Select(s => new LineBuilder($"{{\"{s.Key}\", {s.Key}}}"))),
+								.Select(s => Builder.Line($"{{\"{s.Key}\", {s.Key}}}")))),
 					]
 				}
 			]
@@ -104,6 +104,7 @@ public static class OpenApiV2Parser
 		{
 			type = new EnumBuilder()
 			{
+				TypeName = Titleize(name),
 				Members = schema.Enum?.Select(s => new EnumMemberBuilder(s.ToString())) ?? []
 			};
 		}
@@ -112,12 +113,7 @@ public static class OpenApiV2Parser
 			type = new TypeBuilder(Titleize(name))
 			{
 				Properties = schema.Properties?
-					.Select(s =>
-						new PropertyBuilder(GetTypeName(s.Value), s.Key)
-						{
-							Summary = s.Value.Description,
-							Attributes = [new("JsonPropertyName", $"\"{s.Key}\"")],
-						}) ?? []
+					.Select(s => Builder.Property(GetTypeName(s.Value), s.Key, s.Value.Description, Builder.Attribute("JsonPropertyName", $"\"{s.Key}\""))) ?? [],
 			};
 		}
 
@@ -129,11 +125,7 @@ public static class OpenApiV2Parser
 			"System.Text.Json.Serialization",
 		];
 
-		var builder = new IndentedStringBuilder();
-
-		type.Build(builder);
-
-		return builder.ToString();
+		return Builder.ToString(type);
 	}
 
 	private static void ParsePath(string requestPath, PathModel path, CodeStringBuilder builder)

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using OpenAPIGenerator.Builders;
 using OpenApiV2 = OpenAPIGenerator.Models.OpenApi.V20;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace OpenAPIGenerator;
 
@@ -28,6 +29,8 @@ public class Generator : IIncrementalGenerator
 		var path = compilationAndFiles.compilation.SyntaxTrees
 			.Select(s => Path.GetDirectoryName(s.FilePath))
 			.FirstOrDefault() ?? String.Empty;
+
+		compilationAndFiles.compilation.SyntaxTrees.First() as CSharpSyntaxTree
 
 		var rootNamespace = compilationAndFiles.compilation.AssemblyName ?? path.Split(Path.DirectorySeparatorChar).Last();
 		

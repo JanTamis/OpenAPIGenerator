@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace OpenAPIGenerator.Builders;
 
-public readonly struct AttributeBuilder(string name, params string[] parameters) : IBuilder
+public class AttributeBuilder(string name, IEnumerable<string> parameters) : IBuilder
 {
 	public string Name { get; } = name;
 	public IEnumerable<string> Parameters { get; } = parameters;
