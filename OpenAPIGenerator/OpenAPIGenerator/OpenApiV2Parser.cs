@@ -128,60 +128,60 @@ public static class OpenApiV2Parser
 		return Builder.ToString(type);
 	}
 
-	private static void ParsePath(string requestPath, PathModel path, CodeStringBuilder builder)
+	private static void ParsePath(string requestPath, PathModel path, TypeBuilder type)
 	{
 		foreach (var item in path.GetOperations())
 		{
 			if (item.Value is not null)
 			{
-				ParseOperation(requestPath, item.Value, item.Key, builder);
+				ParseOperation(requestPath, item.Value, item.Key, type);
 			}
 		}
 	}
-	private static void ParseOperation(string requestPath, OperationModel path, string operationName, CodeStringBuilder builder)
+	private static void ParseOperation(string requestPath, OperationModel path, string operationName, TypeBuilder type)
 	{
 		var resultType = Titleize(path.Responses
 			.Where(w => Int32.TryParse(w.Key, out var code) && code is >= 200 and <= 299)
 			.Select(s => GetTypeName(s.Value.Schema))
 			.First());
 
-		var getRequestPath = ParseRequestPath(requestPath, path.Parameters);
-
-		var parameters = String.Concat(path.Parameters
-			.OrderByDescending(o => o.Required)
-			.Select(ParseParameter));
-
-		builder
-			.AppendCode("")
-			.AppendCode("/// <summary>")
-			.AppendCode(CodeStringBuilder
-				.GetLines(path.Summary)
-				.Select(s => $"/// {s}"));
-
-		foreach (var parameter in path.Parameters)
+		if (!String.IsNullOrWhiteSpace(resultType))
 		{
-			builder.AppendCode($"/// <param name=\"{parameter.Name.Replace('-', '_')}\">{parameter.Description.Replace("\n", "\n/// ")}</param>");
+			resultType = "void";
 		}
 
-		var returnType = String.IsNullOrWhiteSpace(resultType)
-			? "Task"
-			: $"Task<{resultType}?>";
+		var getRequestPath = ParseRequestPath(requestPath, path.Parameters);
 
-		var block = builder.AppendBlock($"public async {returnType} {Titleize(path.OperationId)}Async({parameters}CancellationToken token = default)");
+		var parameters = path.Parameters
+			.Where(w => !String.IsNullOrWhiteSpace(w.Name))
+			.OrderByDescending(o => o.Required)
+			.Select(ParseParameter)
+			.Append(Builder.Parameter("CancellationToken", "token", "default"));
+
+		
+		var method = Builder.Method($"{Titleize(path.OperationId)}Async", resultType, true, AccessModifier.Public, parameters, [], path.Summary);
 
 		if (path.Parameters
 		    .Any(w => w.In == ParameterLocation.Header))
 		{
-			block.AppendCode($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, $\"{getRequestPath}\");");
+			method.Content = method.Content
+				.Append(Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, $\"{getRequestPath}\");"))
+				.Append(Builder.WhiteLine());
 
-			ParseHeaders(path.Parameters, block);
-
-			block.AppendCode("using var response = await _client.SendAsync(request, token);");
+			ParseHeaders(path.Parameters, method);
+			
+			method.Content = method.Content
+				.Append(Builder.WhiteLine())
+				.Append(Builder.Line("using var response = await _client.SendAsync(request, token);"));
 		}
 		else
 		{
-			block.AppendCode($"using var response = await _client.{operationName}Async($\"{getRequestPath}\", token);");
+			method.Content = method.Content
+				.Append(Builder.Line($"using var response = await _client.{operationName}Async($\"{getRequestPath}\", token);"));
 		}
+
+		method.Content = method.Content
+			.Append(Builder.WhiteLine());
 
 		ParseResponse(path.Responses, block, !String.IsNullOrWhiteSpace(resultType));
 	}
@@ -234,14 +234,9 @@ public static class OpenApiV2Parser
 		}
 	}
 
-	private static string ParseParameter(ParameterModel parameter)
+	private static ParameterBuilder ParseParameter(ParameterModel parameter)
 	{
 		var name = parameter.Name;
-
-		if (String.IsNullOrWhiteSpace(name))
-		{
-			return String.Empty;
-		}
 
 		var type = parameter.Type switch
 		{
@@ -267,10 +262,10 @@ public static class OpenApiV2Parser
 
 		if (!parameter.Required)
 		{
-			return $"{type}? {name.Replace('-', '_')} = null, ";
+			return Builder.Parameter($"{type}?", name, "null", documentation: parameter.Description);
 		}
 
-		return $"{type} {name.Replace('-', '_')}, ";
+		return Builder.Parameter(type, name, documentation: parameter.Description);
 	}
 
 	public static string? Titleize(string? source)
@@ -299,7 +294,7 @@ public static class OpenApiV2Parser
 		return result;
 	}
 
-	private static void ParseHeaders(IEnumerable<ParameterModel> headers, Block builder)
+	private static void ParseHeaders(IEnumerable<ParameterModel> headers, MethodBuilder method)
 	{
 		foreach (var header in headers
 			         .Where(w => w.In == ParameterLocation.Header)
@@ -318,17 +313,16 @@ public static class OpenApiV2Parser
 
 			if (!header.Required)
 			{
-				builder
-					.AppendBlock($"if ({name} != null)")
-					.AppendCode($"request.Headers.Add(\"{header.Name}\", {name});");
+				method.Content = method.Content
+					.Append(Builder.If($"{name} != null",
+						Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});")));
 			}
 			else
 			{
-				builder.AppendCode($"request.Headers.Add(\"{header.Name}\", {name});");
+				method.Content = method.Content
+					.Append(Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});"));
 			}
 		}
-
-		builder.AppendCode("");
 	}
 
 	private static string GetTypeName(SchemaModel? schema)

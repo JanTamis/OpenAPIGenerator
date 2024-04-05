@@ -30,6 +30,33 @@ public static class Builder
 	};
 
 	public static AttributeBuilder Attribute(string name, params string[] parameters) => new AttributeBuilder(name, parameters);
+	
+	public static ParameterBuilder Parameter(string typeName, string name, string? defaultValue = null, string? documentation = null) => new ParameterBuilder(typeName, name)
+	{
+		DefaultValue = defaultValue,
+		Documentation = documentation,
+	};
+	
+	public static MethodBuilder Method(string methodName, params IBuilder[] content) => new MethodBuilder(methodName)
+	{
+		Content = content,
+	};
+	
+	public static MethodBuilder Method(string methodName, IEnumerable<IBuilder> content) => new MethodBuilder(methodName)
+	{
+		Content = content,
+	};
+	
+	public static MethodBuilder Method(string methodName, string returnType, bool isAsync, AccessModifier accessModifier, IEnumerable<ParameterBuilder> parameters, IEnumerable<IBuilder> content, string? summary = null, IEnumerable<AttributeBuilder>? attributes = null) => new MethodBuilder(methodName)
+	{
+		ReturnType = returnType,
+		IsAsync = isAsync,
+		AccessModifier = accessModifier,
+		Parameters = parameters,
+		Content = content,
+		Summary = summary,
+		Attributes = attributes,
+	};
 
 	public static string ToString<T>(T item) where T : IBuilder
 	{

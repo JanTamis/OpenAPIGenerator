@@ -84,13 +84,13 @@ public class Generator : IIncrementalGenerator
 
 			public sealed class ApiException<TResult> : ApiException
 			{
-				public TResult? Result { get; private set; }
+				public TResult? Result { get; }
 				
 				public ApiException(string message, HttpResponseMessage response, TResult? result)
 					: this(message, response.StatusCode, response.Headers, result, null)
-			{
-			
-			}
+				{
+				
+				}
 			
 				public ApiException(string message, HttpStatusCode statusCode, HttpResponseHeaders headers, TResult? result, Exception innerException)
 						: base(message, statusCode, headers, innerException)
