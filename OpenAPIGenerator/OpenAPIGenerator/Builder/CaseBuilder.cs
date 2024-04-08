@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace OpenAPIGenerator.Builders;
 
-public class CaseBuilder : IBuilder, IContent
+public record CaseBuilder : IBuilder, IContent
 {
 	public string Condition { get; set; }
 

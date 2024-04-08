@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using OpenAPIGenerator.Builders;
+using System.Collections;
 
 namespace OpenAPIGenerator.Models.OpenApi.V20;
 
@@ -34,13 +35,16 @@ public static class OpenApiV2Parser
 				"System.Net.Http",
 				"System.Net.Http.Json",
 				"System",
+				"System.Text",
 				"System.Threading",
 				"System.Threading.Tasks",
+				"System.Runtime.CompilerServices",
+				"System.Collections.Generic",
 				$"{rootNamespace}.Models",
 			],
 			Namespace = rootNamespace,
 			Summary = model.Info.Description,
-			Properties = [Builder.Property("HttpClient", "Client", modifier: PropertyModifier.Get)],
+			Properties = [Builder.Property("HttpClient", "Client", modifier: PropertyModifier.Get, accessModifier: AccessModifier.Private)],
 			Constructors =
 			[
 				new ConstructorBuilder
@@ -125,20 +129,26 @@ public static class OpenApiV2Parser
 		var method = Builder.Method($"{Builder.ToTypeName(path.OperationId)}Async", $"{resultType}?", true, AccessModifier.Public, parameters, [], path.Summary);
 		var hasQuery = path.Parameters.Any(a => a.In == ParameterLocation.Query && !a.Required);
 		var hasPath = path.Parameters.Any(a => a.In == ParameterLocation.Path);
+		var hasForm = path.Parameters.Any(a => a.In == ParameterLocation.FormData);
 
 		if (hasQuery)
 		{
-			Builder.Append(method, Builder.Line($"DefaultInterpolatedStringHandler url = $\"{getRequestPath}\";"));
+			Builder.Append(method, Builder.Line($"var urlBuilder = new StringBuilder($\"{getRequestPath}\");"));
 			Builder.Append(method, Builder.WhiteLine());
 			ParseQuery(path.Parameters, method);
 		}
 
+		if (hasForm)
+		{
+			ParseForm(path.Parameters, method);
+		}
+
 		if (path.Parameters
-		    .Any(w => w.In == ParameterLocation.Header))
+		    .Any(w => w.In == ParameterLocation.Header) || hasForm)
 		{
 			if (hasQuery)
 			{
-				Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, url.ToStringAndClear());"));
+				Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, urlBuilder.ToString());"));
 			}
 			else
 			{
@@ -152,6 +162,11 @@ public static class OpenApiV2Parser
 				}
 			}
 
+			if (hasForm)
+			{
+				Builder.Append(method, Builder.Line("request.Content = formContent;"));
+			}
+
 			Builder.Append(method, Builder.WhiteLine());
 
 			ParseHeaders(path.Parameters, method);
@@ -163,7 +178,7 @@ public static class OpenApiV2Parser
 		{
 			if (hasQuery)
 			{
-				Builder.Append(method, Builder.Line($"using var response = await Client.{operationName}Async(url.ToStringAndClear(), token);"));
+				Builder.Append(method, Builder.Line($"using var response = await Client.{operationName}Async(urlBuilder.ToString(), token);"));
 			}
 			else
 			{
@@ -191,22 +206,31 @@ public static class OpenApiV2Parser
 			.Select(s =>
 			{
 				var code = Int32.Parse(s.Key);
-				var result = ((System.Net.HttpStatusCode) code).ToString();
+				var result = ((System.Net.HttpStatusCode)code).ToString();
 				var type = Builder.ToTypeName(GetTypeName(s.Value.Schema));
 
 				var start = $"HttpStatusCode.{result}";
 
 				if (s.Value.Schema is null)
 				{
-					return Builder.Case(start, Builder.Line($"throw new ApiException(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response);"));
+					return Builder.Case(start, Builder.Line($"throw new ApiException(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response);")) with
+					{
+						HasBreak = false,
+					};
 				}
 
 				if (code is >= 200 and <= 299)
 				{
-					return Builder.Case(start, Builder.Line($"return await response.Content.ReadFromJsonAsync<{type}>(token);"));
+					return Builder.Case(start, Builder.Line($"return await response.Content.ReadFromJsonAsync<{type}>(token);")) with
+					{
+						HasBreak = false,
+					};
 				}
 
-				return Builder.Case(start, Builder.Line($"throw new ApiException<{type}>(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response, await response.Content.ReadFromJsonAsync<{type}>(token));"));
+				return Builder.Case(start, Builder.Line($"throw new ApiException<{type}>(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response, await response.Content.ReadFromJsonAsync<{type}>(token));")) with
+				{
+					HasBreak = false
+				};
 			});
 
 		Builder.Append(method, Builder.Switch("response.StatusCode", responseCodes, Builder.Line("throw new InvalidOperationException(\"Unknown status code has been returned.\");")));
@@ -259,17 +283,16 @@ public static class OpenApiV2Parser
 
 		foreach (var parameter in parameters.Where(w => w.In == ParameterLocation.Query && w.Required))
 		{
+			if (isFirst)
+			{
+				result += '?';
+				isFirst = false;
+			}
+
 			var name = Builder.ToParameterName(parameter.Name);
 
-			result += isFirst
-				? '?'
-				: '&';
-
-			result += parameter.Name + "={" + name + '}';
-
-			isFirst = false;
+			result += parameter.Name + "={" + name + "}&";
 		}
-
 
 		return result;
 	}
@@ -308,10 +331,9 @@ public static class OpenApiV2Parser
 
 	private static void ParseQuery(IEnumerable<ParameterModel> query, MethodBuilder method)
 	{
-		var isFirst = false;
+		query = query.Where(w => w.In == ParameterLocation.Query && !w.Required);
 
-		foreach (var header in query
-			         .Where(w => w.In == ParameterLocation.Query && !w.Required))
+		foreach (var header in query)
 		{
 			var name = Builder.ToParameterName(header.Name);
 			IContent block = method;
@@ -323,18 +345,23 @@ public static class OpenApiV2Parser
 				block = ifBlock;
 			}
 
-			if (isFirst)
-			{
-				Builder.Append(block, Builder.Line($"url.AppendLiteral(\"{header.Name}=\");"));
-			}
-			else
-			{
-				Builder.Append(block, Builder.Line($"url.AppendLiteral(\"&{header.Name}=\");"));
-			}
+			Builder.Append(block, Builder.Line($"urlBuilder.Append($\"{header.Name}=" + "{" + name + "}&\");"));
+			Builder.Append(method, Builder.WhiteLine());
+		}
+	}
 
-			Builder.Append(block, Builder.Line($"url.AppendFormatted({name});"));
+	private static void ParseForm(IEnumerable<ParameterModel> query, MethodBuilder method)
+	{
+		query = query
+			.Where(w => w.In == ParameterLocation.FormData);
 
-			isFirst = false;
+		var requiredData = query.Where(w => w.Required).ToList();
+		var nonRequiredData = query.Where(w => !w.Required).ToList();
+
+		if (requiredData.Any())
+		{
+			Builder.Append(method, Builder.Line("var formContent = new FormUrlEncodedContent(new[]"));
+			Builder.Append(method, Builder.Block(requiredData.Select(s => Builder.Line($"KeyValuePair.Create(\"{s.Name}\", {Builder.ToParameterName(s.Name)}),")), ");"));
 			Builder.Append(method, Builder.WhiteLine());
 		}
 	}

@@ -6,7 +6,6 @@ using System.Linq;
 using System.Text.Json;
 using OpenAPIGenerator.Builders;
 using OpenApiV2 = OpenAPIGenerator.Models.OpenApi.V20;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace OpenAPIGenerator;
 

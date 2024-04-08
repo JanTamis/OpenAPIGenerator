@@ -20,7 +20,7 @@ public class TypeBuilder : BaseTypeBuilder
 
 	public override void Build(IndentedStringBuilder builder)
 	{
-		foreach (var @using in Usings)
+		foreach (var @using in Usings.OrderBy(o => o))
 		{
 			builder.Append("using ");
 			builder.Append(@using);

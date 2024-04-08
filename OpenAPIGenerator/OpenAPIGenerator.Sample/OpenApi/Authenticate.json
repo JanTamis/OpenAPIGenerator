@@ -187,7 +187,7 @@
             }
           },
           "400": {
-            "description": "Bad request  - Missing / invalid parameter or authorization code invalid / expired.",
+            "description": "Bad request - Missing / invalid parameter or authorization code invalid / expired.",
             "schema": {
               "$ref": "#/definitions/error_400_response"
             }

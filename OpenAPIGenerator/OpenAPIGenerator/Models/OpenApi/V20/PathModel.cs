@@ -37,7 +37,7 @@ public class PathModel
 		yield return new (nameof(Get), Get);
 		yield return new (nameof(Post), Post);
 		yield return new (nameof(Put), Put);
-		yield return new (nameof(Delete), Post);
+		yield return new (nameof(Delete), Delete);
 		yield return new (nameof(Options), Options);
 		yield return new (nameof(Head), Head);
 		yield return new (nameof(Patch), Patch);

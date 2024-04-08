@@ -141,15 +141,17 @@ public static class Builder
 
 		var parts = name.Split('_', '-', '.');
 
-		for (var i = 0; i < parts.Length; i++)
+		parts[0] = parts[0].ToLower();
+
+		for (var i = 1; i < parts.Length; i++)
 		{
 			if (!string.IsNullOrEmpty(parts[i]))
 			{
-				parts[i] = parts[i].ToLower();
+				parts[i] = Char.ToUpper(parts[i][0]) + parts[i].Substring(1).ToLower();
 			}
 		}
 
-		return Regex.Replace(String.Join("_", parts), @"[^a-zA-Z0-9_]", String.Empty);
+		return Regex.Replace(String.Join("", parts), @"[^a-zA-Z0-9_]", String.Empty);
 	}
 
 	public static string ToString<T>(T item) where T : IBuilder
