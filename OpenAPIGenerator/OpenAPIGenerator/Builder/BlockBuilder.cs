@@ -1,10 +1,12 @@
+using System;
 using System.Collections.Generic;
 
 namespace OpenAPIGenerator.Builders;
 
-public class BlockBuilder(IEnumerable<IBuilder> content) : IBuilder
+public class BlockBuilder(IEnumerable<IBuilder> content) : IBuilder, IContent
 {
-	public IEnumerable<IBuilder> Content { get; } = content;
+	public string Suffix { get; set; } = String.Empty;
+	public IEnumerable<IBuilder> Content { get; set; } = content;
 
 	public void Build(IndentedStringBuilder builder)
 	{
@@ -20,5 +22,6 @@ public class BlockBuilder(IEnumerable<IBuilder> content) : IBuilder
 		}
 		
 		builder.Append('}');
+		builder.Append(Suffix);
 	}
 }

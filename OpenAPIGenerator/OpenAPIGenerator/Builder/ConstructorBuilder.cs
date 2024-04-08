@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace OpenAPIGenerator.Builders;
 
-public class ConstructorBuilder : IBuilder
+public class ConstructorBuilder : IBuilder, IContent
 {
 	public string TypeName { get; set; }
 	public string? Summary { get; set; }

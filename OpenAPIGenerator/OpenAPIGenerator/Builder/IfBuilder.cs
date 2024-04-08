@@ -2,7 +2,7 @@
 
 namespace OpenAPIGenerator.Builders;
 
-public class IfBuilder(string condition, IEnumerable<IBuilder> content) : IBuilder
+public class IfBuilder(string condition, IEnumerable<IBuilder> content) : IBuilder, IContent
 {
 	public string Condition { get; set; } = condition;
 

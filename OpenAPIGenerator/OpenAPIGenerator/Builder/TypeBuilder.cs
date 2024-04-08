@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 
 namespace OpenAPIGenerator.Builders;
 
-public class TypeBuilder : BaseTypeBuilder 
+public class TypeBuilder : BaseTypeBuilder
 {
 	public TypeKind TypeKind { get; set; } = TypeKind.Class;
 

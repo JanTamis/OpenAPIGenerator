@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace OpenAPIGenerator.Builders;
 
-public class MethodBuilder(string methodName) : IBuilder
+public class MethodBuilder(string methodName) : IBuilder, IContent
 {
 	public string MethodName { get; set; } = methodName;
 	public string? Summary { get; set; }
@@ -32,7 +32,7 @@ public class MethodBuilder(string methodName) : IBuilder
 			if (!String.IsNullOrWhiteSpace(parameter.Documentation))
 			{
 				builder.Append($"/// <param name=\"{parameter.Name}\">");
-				builder.AppendLines(parameter.Documentation, x => $"/// {x}", false);
+				builder.AppendLines(parameter.Documentation, x => $"/// {x}", false, skipFinalNewline: true);
 				builder.AppendLine("</param>");
 			}
 		}
@@ -42,7 +42,7 @@ public class MethodBuilder(string methodName) : IBuilder
 
 		if (IsAsync)
 		{
-			if (ReturnType == "void")
+			if (ReturnType is "void" or "Task" or "?" || String.IsNullOrWhiteSpace(ReturnType))
 			{
 				builder.Append("async Task");
 			}
@@ -76,8 +76,8 @@ public class MethodBuilder(string methodName) : IBuilder
 			parameter.Build(builder);
 		}
 
-		builder.Append(')');
+		builder.AppendLine(")");
 
-		new BlockBuilder(Content).Build(builder);
+		Builder.Block(Content).Build(builder);
 	}
 }

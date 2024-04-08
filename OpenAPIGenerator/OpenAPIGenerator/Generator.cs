@@ -30,8 +30,6 @@ public class Generator : IIncrementalGenerator
 			.Select(s => Path.GetDirectoryName(s.FilePath))
 			.FirstOrDefault() ?? String.Empty;
 
-		compilationAndFiles.compilation.SyntaxTrees.First() as CSharpSyntaxTree
-
 		var rootNamespace = compilationAndFiles.compilation.AssemblyName ?? path.Split(Path.DirectorySeparatorChar).Last();
 		
 		context.AddSource("ApiException", $$""""
@@ -106,7 +104,7 @@ public class Generator : IIncrementalGenerator
 
 			foreach (var item in model.Definitions)
 			{
-				var name = OpenApiV2.OpenApiV2Parser.Titleize(item.Key);
+				var name = Builder.ToTypeName(item.Key);
 
 				context.AddSource($"Models/{BaseTypeBuilder.ToTypeName(name)}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
 			}

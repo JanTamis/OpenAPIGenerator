@@ -1,6 +1,7 @@
 using OpenAPIGenerator.Enumerators;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using OpenAPIGenerator.Builders;
 
@@ -10,13 +11,21 @@ public static class OpenApiV2Parser
 {
 	public static string Parse(SwaggerModel model, string rootNamespace)
 	{
-		var typeName = Titleize(model.Info.Title);
-
 		var defaultHeaders = model.SecurityDefinitions
 			.Where(w => w.Value.In == ParameterLocation.Header);
 
-		var builder = new CodeStringBuilder(1);
+		var constructorContent = new List<IBuilder>
+		{
+			Builder.Line($"BaseAddress = new Uri(\"{model.Schemes[0]}://{model.Host}{model.BasePath}\"),")
+		};
 
+		if (defaultHeaders.Any())
+		{
+			constructorContent.Add(Builder.Line("DefaultRequestHeaders ="));
+			constructorContent.Add(Builder.Block(defaultHeaders
+				.Select(s => Builder.Line($"{{ \"{s.Key}\", {s.Key} }},"))));
+		}
+		
 		var type = new TypeBuilder(model.Info.Title)
 		{
 			Usings =
@@ -41,59 +50,18 @@ public static class OpenApiV2Parser
 					Content =
 					[
 						Builder.Line("Client = new HttpClient()"),
-						Builder.Block(
-							Builder.Line($"BaseAddress = new Uri(\"{model.Schemes[0]}://{model.Host}{model.BasePath}\"),"),
-							Builder.Line("DefaultRequestHeaders ="),
-							Builder.Block(defaultHeaders
-								.Select(s => Builder.Line($"{{\"{s.Key}\", {s.Key}}}")))),
-					]
+						Builder.Block(constructorContent, ";"),
+					],
 				}
 			]
 		};
 
 		foreach (var path in model.Paths)
 		{
-			ParsePath(path.Key, path.Value, builder);
+			ParsePath(path.Key, path.Value, type);
 		}
 
 		return Builder.ToString(type);
-
-		return $$"""
-			using System.Net;
-			using System.Net.Http;
-			using System.Net.Http.Json;
-			using System;
-			using System.Threading;
-			using System.Threading.Tasks;
-			using {{rootNamespace}}.Models;
-
-			namespace {{rootNamespace}};
-
-			/// <summary>
-			/// {{model.Info.Description.Trim().Replace("\n", "\n/// ")}}
-			/// </summary>
-			public class {{typeName}} : IDisposable
-			{
-				private readonly HttpClient _client;
-				
-				public {{typeName}}({{String.Join(", ", defaultHeaders.Select(s => $"string {s.Key}"))}})
-				{
-					_client = new HttpClient()
-					{
-						BaseAddress = new Uri("{{model.Schemes[0]}}://{{model.Host}}{{model.BasePath}}"),
-						DefaultRequestHeaders =
-						{
-							{{String.Join("\n\t\t\t\t", defaultHeaders.Select(s => $$"""{ "{{s.Key}}", {{s.Key}} }"""))}}
-																								}
-																							};
-																						}{{builder}}
-																							
-																						public void Dispose()
-																						{
-																							_client.Dispose();
-																						}
-																					}
-			""";
 	}
 
 	public static string ParseObject(string name, SchemaModel schema, string defaultNamespace)
@@ -102,15 +70,15 @@ public static class OpenApiV2Parser
 
 		if (schema.Enum?.Any() ?? false)
 		{
-			type = new EnumBuilder()
+			type = new EnumBuilder
 			{
-				TypeName = Titleize(name),
+				TypeName = Builder.ToTypeName(name),
 				Members = schema.Enum?.Select(s => new EnumMemberBuilder(s.ToString())) ?? []
 			};
 		}
 		else
 		{
-			type = new TypeBuilder(Titleize(name))
+			type = new TypeBuilder(Builder.ToTypeName(name))
 			{
 				Properties = schema.Properties?
 					.Select(s => Builder.Property(GetTypeName(s.Value), s.Key, s.Value.Description, Builder.Attribute("JsonPropertyName", $"\"{s.Key}\""))) ?? [],
@@ -138,17 +106,13 @@ public static class OpenApiV2Parser
 			}
 		}
 	}
+
 	private static void ParseOperation(string requestPath, OperationModel path, string operationName, TypeBuilder type)
 	{
-		var resultType = Titleize(path.Responses
+		var resultType = Builder.ToTypeName(path.Responses
 			.Where(w => Int32.TryParse(w.Key, out var code) && code is >= 200 and <= 299)
-			.Select(s => GetTypeName(s.Value.Schema))
+			.Select(s => $"{GetTypeName(s.Value.Schema)}?")
 			.First());
-
-		if (!String.IsNullOrWhiteSpace(resultType))
-		{
-			resultType = "void";
-		}
 
 		var getRequestPath = ParseRequestPath(requestPath, path.Parameters);
 
@@ -158,80 +122,94 @@ public static class OpenApiV2Parser
 			.Select(ParseParameter)
 			.Append(Builder.Parameter("CancellationToken", "token", "default"));
 
-		
-		var method = Builder.Method($"{Titleize(path.OperationId)}Async", resultType, true, AccessModifier.Public, parameters, [], path.Summary);
+		var method = Builder.Method($"{Builder.ToTypeName(path.OperationId)}Async", $"{resultType}?", true, AccessModifier.Public, parameters, [], path.Summary);
+		var hasQuery = path.Parameters.Any(a => a.In == ParameterLocation.Query && !a.Required);
+		var hasPath = path.Parameters.Any(a => a.In == ParameterLocation.Path);
+
+		if (hasQuery)
+		{
+			Builder.Append(method, Builder.Line($"DefaultInterpolatedStringHandler url = $\"{getRequestPath}\";"));
+			Builder.Append(method, Builder.WhiteLine());
+			ParseQuery(path.Parameters, method);
+		}
 
 		if (path.Parameters
 		    .Any(w => w.In == ParameterLocation.Header))
 		{
-			method.Content = method.Content
-				.Append(Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, $\"{getRequestPath}\");"))
-				.Append(Builder.WhiteLine());
+			if (hasQuery)
+			{
+				Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, url.ToStringAndClear());"));
+			}
+			else
+			{
+				if (hasPath)
+				{
+					Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, $\"{getRequestPath}\");"));
+				}
+				else
+				{
+					Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{operationName}, \"{getRequestPath}\");"));
+				}
+			}
+
+			Builder.Append(method, Builder.WhiteLine());
 
 			ParseHeaders(path.Parameters, method);
-			
-			method.Content = method.Content
-				.Append(Builder.WhiteLine())
-				.Append(Builder.Line("using var response = await _client.SendAsync(request, token);"));
+
+			Builder.Append(method, Builder.WhiteLine());
+			Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, token);"));
 		}
 		else
 		{
-			method.Content = method.Content
-				.Append(Builder.Line($"using var response = await _client.{operationName}Async($\"{getRequestPath}\", token);"));
+			if (hasQuery)
+			{
+				Builder.Append(method, Builder.Line($"using var response = await Client.{operationName}Async(url.ToStringAndClear(), token);"));
+			}
+			else
+			{
+				if (hasPath)
+				{
+					Builder.Append(method, Builder.Line($"using var response = await Client.{operationName}Async($\"{getRequestPath}\", token);"));
+				}
+				else
+				{
+					Builder.Append(method, Builder.Line($"using var response = await Client.{operationName}Async(\"{getRequestPath}\", token);"));
+				}
+			}
 		}
 
-		method.Content = method.Content
-			.Append(Builder.WhiteLine());
+		Builder.Append(method, Builder.WhiteLine());
 
-		ParseResponse(path.Responses, block, !String.IsNullOrWhiteSpace(resultType));
+		ParseResponse(path.Responses, method, !String.IsNullOrWhiteSpace(resultType));
+
+		type.Methods = type.Methods.Append(method);
 	}
 
-	private static void ParseResponse(IReadOnlyDictionary<string, ResponseModel> responses, Block builder, bool hasReturnType)
+	private static void ParseResponse(IReadOnlyDictionary<string, ResponseModel> responses, MethodBuilder method, bool hasReturnType)
 	{
-		var defaultEnumerable = Enumerable.Empty<string>();
-
-		if (!responses.ContainsKey("default"))
-		{
-			defaultEnumerable = defaultEnumerable.Append("""
-				_ => throw new InvalidOperationException("Unknown status code has been returned."),
-				""");
-		}
-
-		var maxLength = responses
-			.Select(s => ((System.Net.HttpStatusCode) Int32.Parse(s.Key)).ToString().Length)
-			.Max();
-
 		var responseCodes = responses
 			.Select(s =>
 			{
 				var code = Int32.Parse(s.Key);
 				var result = ((System.Net.HttpStatusCode) code).ToString();
-				var type = Titleize(GetTypeName(s.Value.Schema));
+				var type = Builder.ToTypeName(GetTypeName(s.Value.Schema));
 
-				var start = $"HttpStatusCode.{result} {new string(' ', maxLength - result.Length)}=>";
+				var start = $"HttpStatusCode.{result}";
 
 				if (s.Value.Schema is null)
 				{
-					return $"{start} throw new ApiException(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response),";
+					return Builder.Case(start, Builder.Line($"throw new ApiException(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response);"));
 				}
 
 				if (code is >= 200 and <= 299)
 				{
-					return $"{start} await response.Content.ReadFromJsonAsync<{type}>(token),";
+					return Builder.Case(start, Builder.Line($"return await response.Content.ReadFromJsonAsync<{type}>(token);"));
 				}
 
-				return $"{start} throw new ApiException<{type}>(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response, await response.Content.ReadFromJsonAsync<{type}>(token)),";
-			})
-			.Concat(defaultEnumerable);
+				return Builder.Case(start, Builder.Line($"throw new ApiException<{type}>(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response, await response.Content.ReadFromJsonAsync<{type}>(token));"));
+			});
 
-		var block = hasReturnType
-			? builder.AppendBlock("return response.StatusCode switch", close: "};")
-			: builder.AppendBlock("_ = response.StatusCode switch", close: "};");
-
-		foreach (var response in responseCodes)
-		{
-			block.AppendCode(response);
-		}
+		Builder.Append(method, Builder.Switch("response.StatusCode", responseCodes, Builder.Line("throw new InvalidOperationException(\"Unknown status code has been returned.\");")));
 	}
 
 	private static ParameterBuilder ParseParameter(ParameterModel parameter)
@@ -268,28 +246,30 @@ public static class OpenApiV2Parser
 		return Builder.Parameter(type, name, documentation: parameter.Description);
 	}
 
-	public static string? Titleize(string? source)
-	{
-		if (String.IsNullOrEmpty(source))
-		{
-			return source;
-		}
-
-		source = String.Join(String.Empty, source
-			.Split(' ', '-')
-			.Select(i => Char.ToUpper(i[0]) + i.Substring(1)));
-
-		return Char.ToUpper(source[0]) + source.Substring(1).Replace('.', '_');
-	}
-
 	private static string ParseRequestPath(string path, List<ParameterModel> parameters)
 	{
 		var result = path;
 
 		foreach (var parameter in parameters.Where(w => w.In == ParameterLocation.Path))
 		{
-			result = result.Replace('{' + parameter.Name + '}', '{' + parameter.Name.Replace('-', '_')) + '}';
+			result = result.Replace('{' + parameter.Name + '}', '{' + Builder.ToParameterName(parameter.Name) + '}');
 		}
+
+		var isFirst = true;
+
+		foreach (var parameter in parameters.Where(w => w.In == ParameterLocation.Query && w.Required))
+		{
+			var name = Builder.ToParameterName(parameter.Name);
+
+			result += isFirst
+				? '?'
+				: '&';
+
+			result += parameter.Name + "={" + name + '}';
+
+			isFirst = false;
+		}
+
 
 		return result;
 	}
@@ -300,7 +280,7 @@ public static class OpenApiV2Parser
 			         .Where(w => w.In == ParameterLocation.Header)
 			         .OrderByDescending(o => o.Required))
 		{
-			var name = header.Name.Replace('-', '_');
+			var name = Builder.ToParameterName(header.Name);
 
 			if (header.Type != ParameterTypes.String || !String.IsNullOrEmpty(header.Format))
 			{
@@ -313,15 +293,49 @@ public static class OpenApiV2Parser
 
 			if (!header.Required)
 			{
-				method.Content = method.Content
-					.Append(Builder.If($"{name} != null",
-						Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});")));
+				Builder.Append(method, Builder.WhiteLine());
+				Builder.Append(method, Builder.If($"{name} != null",
+				[
+					Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});")
+				]));
 			}
 			else
 			{
-				method.Content = method.Content
-					.Append(Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});"));
+				Builder.Append(method, Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});"));
 			}
+		}
+	}
+
+	private static void ParseQuery(IEnumerable<ParameterModel> query, MethodBuilder method)
+	{
+		var isFirst = false;
+
+		foreach (var header in query
+			         .Where(w => w.In == ParameterLocation.Query && !w.Required))
+		{
+			var name = Builder.ToParameterName(header.Name);
+			IContent block = method;
+
+			if (!header.Required)
+			{
+				var ifBlock = Builder.If($"{name} != null");
+				Builder.Append(method, ifBlock);
+				block = ifBlock;
+			}
+
+			if (isFirst)
+			{
+				Builder.Append(block, Builder.Line($"url.AppendLiteral(\"{header.Name}=\");"));
+			}
+			else
+			{
+				Builder.Append(block, Builder.Line($"url.AppendLiteral(\"&{header.Name}=\");"));
+			}
+
+			Builder.Append(block, Builder.Line($"url.AppendFormatted({name});"));
+
+			isFirst = false;
+			Builder.Append(method, Builder.WhiteLine());
 		}
 	}
 
