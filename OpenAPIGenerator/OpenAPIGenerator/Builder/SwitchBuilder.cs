@@ -10,7 +10,7 @@ public class SwitchBuilder : IBuilder
 	
 	public IEnumerable<CaseBuilder> Cases { get; set; }
 	
-	public IEnumerable<IBuilder> Default { get; set; }
+	public CaseBuilder? Default { get; set; }
 	
 	public void Build(IndentedStringBuilder builder)
 	{
@@ -27,19 +27,31 @@ public class SwitchBuilder : IBuilder
 				builder.AppendLine();
 			}
 
-			if (Default.Any())
+			if (Default is not null)
 			{
 				builder.AppendLine("default:");
 
 				using (builder.Indent())
 				{
-					foreach (var item in Default)
+					var content = Default.Content.ToList();
+
+					for (var i = 0; i < content.Count; i++)
 					{
-						item.Build(builder);
-						builder.AppendLine();
+						content[i].Build(builder);
+						if (i < content.Count - 1)
+						{
+							builder.AppendLine();
+						}
 					}
 
-					builder.AppendLine("break;");
+					if (Default.HasBreak)
+					{
+						builder.AppendLine("break;");
+					}
+					else
+					{
+						builder.AppendLine();
+					}
 				}
 			}
 		}

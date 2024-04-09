@@ -3,9 +3,9 @@ using System.Collections.Generic;
 
 namespace OpenAPIGenerator.Builders;
 
-public class MethodBuilder(string methodName) : IBuilder, IContent
+public record MethodBuilder : IBuilder, IContent
 {
-	public string MethodName { get; set; } = methodName;
+	public string MethodName { get; set; }
 	public string? Summary { get; set; }
 	public string ReturnType { get; set; } = "void";
 	
@@ -18,6 +18,11 @@ public class MethodBuilder(string methodName) : IBuilder, IContent
 	public IEnumerable<ParameterBuilder> Parameters { get; set; }
 	public IEnumerable<IBuilder> Content { get; set; }
 
+	public MethodBuilder(string methodName)
+	{
+		MethodName = methodName;
+	}
+
 	public void Build(IndentedStringBuilder builder)
 	{
 		if (!String.IsNullOrWhiteSpace(Summary))
@@ -27,7 +32,7 @@ public class MethodBuilder(string methodName) : IBuilder, IContent
 			builder.AppendLine("/// </summary>");
 		}
 
-		foreach (var parameter in Parameters)
+		foreach (var parameter in Parameters ?? [])
 		{
 			if (!String.IsNullOrWhiteSpace(parameter.Documentation))
 			{
@@ -36,9 +41,12 @@ public class MethodBuilder(string methodName) : IBuilder, IContent
 				builder.AppendLine("</param>");
 			}
 		}
-		
-		builder.Append(AccessModifier.ToString().ToLower());
-		builder.Append(' ');
+
+		if (AccessModifier != AccessModifier.None)
+		{
+			builder.Append(AccessModifier.ToString().ToLower());
+			builder.Append(' ');
+		}
 
 		if (IsAsync)
 		{
@@ -62,7 +70,7 @@ public class MethodBuilder(string methodName) : IBuilder, IContent
 
 		var isFirst = true;
 		
-		foreach (var parameter in Parameters)
+		foreach (var parameter in Parameters ?? [])
 		{
 			if (!isFirst)
 			{

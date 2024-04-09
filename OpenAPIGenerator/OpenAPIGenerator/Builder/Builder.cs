@@ -68,11 +68,11 @@ public static class Builder
 		Cases = cases,
 	};
 
-	public static SwitchBuilder Switch(string expression, IEnumerable<CaseBuilder> cases, params IBuilder[] defaultStatements) => new SwitchBuilder
+	public static SwitchBuilder Switch(string expression, IEnumerable<CaseBuilder> cases, CaseBuilder @default) => new SwitchBuilder
 	{
 		Expression = expression,
 		Cases = cases,
-		Default = defaultStatements
+		Default = @default
 	};
 
 	public static CaseBuilder Case(string condition, params IBuilder[] content) => new CaseBuilder

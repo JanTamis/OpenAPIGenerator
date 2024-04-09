@@ -34,6 +34,7 @@ public static class OpenApiV2Parser
 				"System.Net",
 				"System.Net.Http",
 				"System.Net.Http.Json",
+				"System.Net.Http.Headers",
 				"System",
 				"System.Text",
 				"System.Threading",
@@ -129,6 +130,7 @@ public static class OpenApiV2Parser
 		var method = Builder.Method($"{Builder.ToTypeName(path.OperationId)}Async", $"{resultType}?", true, AccessModifier.Public, parameters, [], path.Summary);
 		var hasQuery = path.Parameters.Any(a => a.In == ParameterLocation.Query && !a.Required);
 		var hasPath = path.Parameters.Any(a => a.In == ParameterLocation.Path);
+		var hasHeader = path.Parameters.Any(w => w.In == ParameterLocation.Header) || path.Consumes?.Any() == true || path.Produces?.Any() == true;
 		var hasForm = path.Parameters.Any(a => a.In == ParameterLocation.FormData);
 
 		if (hasQuery)
@@ -138,13 +140,7 @@ public static class OpenApiV2Parser
 			ParseQuery(path.Parameters, method);
 		}
 
-		if (hasForm)
-		{
-			ParseForm(path.Parameters, method);
-		}
-
-		if (path.Parameters
-		    .Any(w => w.In == ParameterLocation.Header) || hasForm)
+		if (hasHeader || hasForm)
 		{
 			if (hasQuery)
 			{
@@ -164,11 +160,22 @@ public static class OpenApiV2Parser
 
 			if (hasForm)
 			{
-				Builder.Append(method, Builder.Line("request.Content = formContent;"));
+				Builder.Append(method, Builder.WhiteLine());
+				Builder.Append(method, Builder.Line("request.Content = new FormUrlEncodedContent(GetFormContent());"));
 			}
 
 			Builder.Append(method, Builder.WhiteLine());
 
+			foreach (var consume in path.Consumes ?? [])
+			{
+				Builder.Append(method, Builder.Line($"request.Headers.Expect.Add(NameValueWithParametersHeaderValue.Parse(\"{consume}\"));"));
+			}
+
+			foreach (var consume in path.Produces ?? [])
+			{
+				Builder.Append(method, Builder.Line($"request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue.Parse(\"{consume}\"));"));
+			}
+			
 			ParseHeaders(path.Parameters, method);
 
 			Builder.Append(method, Builder.WhiteLine());
@@ -196,6 +203,12 @@ public static class OpenApiV2Parser
 		Builder.Append(method, Builder.WhiteLine());
 
 		ParseResponse(path.Responses, method, !String.IsNullOrWhiteSpace(resultType));
+
+		if (hasForm)
+		{
+			Builder.Append(method, Builder.WhiteLine());
+			Builder.Append(method, ParseForm(path.Parameters));
+		}
 
 		type.Methods = type.Methods.Append(method);
 	}
@@ -233,7 +246,7 @@ public static class OpenApiV2Parser
 				};
 			});
 
-		Builder.Append(method, Builder.Switch("response.StatusCode", responseCodes, Builder.Line("throw new InvalidOperationException(\"Unknown status code has been returned.\");")));
+		Builder.Append(method, Builder.Switch("response.StatusCode", responseCodes, Builder.Case(String.Empty, Builder.Line("throw new InvalidOperationException(\"Unknown status code has been returned.\");")) with { HasBreak = false }));
 	}
 
 	private static ParameterBuilder ParseParameter(ParameterModel parameter)
@@ -350,20 +363,45 @@ public static class OpenApiV2Parser
 		}
 	}
 
-	private static void ParseForm(IEnumerable<ParameterModel> query, MethodBuilder method)
+	private static MethodBuilder ParseForm(IEnumerable<ParameterModel> query)
 	{
-		query = query
-			.Where(w => w.In == ParameterLocation.FormData);
-
-		var requiredData = query.Where(w => w.Required).ToList();
-		var nonRequiredData = query.Where(w => !w.Required).ToList();
-
-		if (requiredData.Any())
+		var method = Builder.Method("GetFormContent") with
 		{
-			Builder.Append(method, Builder.Line("var formContent = new FormUrlEncodedContent(new[]"));
-			Builder.Append(method, Builder.Block(requiredData.Select(s => Builder.Line($"KeyValuePair.Create(\"{s.Name}\", {Builder.ToParameterName(s.Name)}),")), ");"));
-			Builder.Append(method, Builder.WhiteLine());
+			ReturnType = "IEnumerable<KeyValuePair<string, string>>",
+			AccessModifier = AccessModifier.None,
+		};
+
+		var data = query
+			.Where(w => w.In == ParameterLocation.FormData)
+			.GroupBy(g => g.Required)
+			.OrderByDescending(o => o.Key);
+		
+		foreach (var parameters in data)
+		{
+			if (parameters.Key)
+			{
+				foreach (var item in parameters)
+				{
+					Builder.Append(method, Builder.Line($"yield return KeyValuePair.Create(\"{item.Name}\", {Builder.ToParameterName(item.Name)});"));
+
+				}
+			}
+			else
+			{
+				foreach (var item in parameters)
+				{
+					var parameterName = Builder.ToParameterName(item.Name);
+					
+					Builder.Append(method, Builder.WhiteLine());
+					Builder.Append(method, Builder.If($"{parameterName} != null",
+					[
+						Builder.Line($"yield return KeyValuePair.Create(\"{item.Name}\", {parameterName});"),
+					]));
+				}
+			}
 		}
+
+		return method;
 	}
 
 	private static string GetTypeName(SchemaModel? schema)
