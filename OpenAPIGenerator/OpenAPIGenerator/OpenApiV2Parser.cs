@@ -133,6 +133,20 @@ public static class OpenApiV2Parser
 		var hasHeader = path.Parameters.Any(w => w.In == ParameterLocation.Header) || path.Consumes?.Any() == true || path.Produces?.Any() == true;
 		var hasForm = path.Parameters.Any(a => a.In == ParameterLocation.FormData);
 
+		var requiredParameters = path.Parameters
+			.Where(w => !String.IsNullOrWhiteSpace(w.Name) && w.Required && w.Type == ParameterTypes.String)
+			.Select(s => Builder.ToParameterName(s.Name));
+
+		foreach (var item in requiredParameters)
+		{
+			Builder.Append(method, Builder.Line($"ArgumentNullException.ThrowIfNull({item});"));
+		}
+
+		if (requiredParameters.Any())
+		{
+			Builder.Append(method, Builder.WhiteLine());
+		}
+
 		if (hasQuery)
 		{
 			Builder.Append(method, Builder.Line($"var urlBuilder = new StringBuilder($\"{getRequestPath}\");"));
@@ -274,6 +288,10 @@ public static class OpenApiV2Parser
 		{
 			type = "Guid";
 		}
+		else if (parameter is { Type: ParameterTypes.String, Format: "byte" })
+		{
+			type = "byte[]";
+		}
 
 		if (!parameter.Required)
 		{
@@ -289,7 +307,7 @@ public static class OpenApiV2Parser
 
 		foreach (var parameter in parameters.Where(w => w.In == ParameterLocation.Path))
 		{
-			result = result.Replace('{' + parameter.Name + '}', '{' + Builder.ToParameterName(parameter.Name) + '}');
+			result = result.Replace('{' + parameter.Name + '}', "{Uri.EscapeDataString(" + Builder.ToParameterName(parameter.Name) + ")}");
 		}
 
 		var isFirst = true;
@@ -304,7 +322,7 @@ public static class OpenApiV2Parser
 
 			var name = Builder.ToParameterName(parameter.Name);
 
-			result += parameter.Name + "={" + name + "}&";
+			result += parameter.Name + "={Uri.EscapeDataString(" + name + ")}&";
 		}
 
 		return result;
@@ -318,13 +336,17 @@ public static class OpenApiV2Parser
 		{
 			var name = Builder.ToParameterName(header.Name);
 
-			if (header.Type != ParameterTypes.String || !String.IsNullOrEmpty(header.Format))
+			if (header.Type == ParameterTypes.Binary || (header.Type == ParameterTypes.String && header.Format == "byte"))
+			{
+				name = $"Convert.ToBase64String({name})";
+			}
+			else if (header.Type == ParameterTypes.Boolean)
+			{
+				name = $"{name} ? \"true\" : \"false\"";
+			}
+			else if (header.Type != ParameterTypes.String || !String.IsNullOrEmpty(header.Format))
 			{
 				name = $"{name}.ToString()";
-			}
-			else if (header.Type == ParameterTypes.Binary)
-			{
-				name = $"Convert.ToBase64String({name});";
 			}
 
 			if (!header.Required)
@@ -358,7 +380,7 @@ public static class OpenApiV2Parser
 				block = ifBlock;
 			}
 
-			Builder.Append(block, Builder.Line($"urlBuilder.Append($\"{header.Name}=" + "{" + name + "}&\");"));
+			Builder.Append(block, Builder.Line($"urlBuilder.Append($\"{Uri.EscapeDataString(header.Name)}=" + "{Uri.EscapeDataString(" + name + ")}&\");"));
 			Builder.Append(method, Builder.WhiteLine());
 		}
 	}
