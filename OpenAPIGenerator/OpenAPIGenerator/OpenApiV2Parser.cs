@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using OpenAPIGenerator.Builders;
 using System.Collections;
+using System.Security.Cryptography;
 
 namespace OpenAPIGenerator.Models.OpenApi.V20;
 
@@ -229,38 +230,76 @@ public static class OpenApiV2Parser
 
 	private static void ParseResponse(IReadOnlyDictionary<string, ResponseModel> responses, MethodBuilder method, bool hasReturnType)
 	{
-		var responseCodes = responses
-			.Select(s =>
+		if (hasReturnType)
+		{
+			var length = responses.Max(m =>
 			{
-				var code = Int32.Parse(s.Key);
-				var result = ((System.Net.HttpStatusCode)code).ToString();
-				var type = Builder.ToTypeName(GetTypeName(s.Value.Schema));
+				var code = Int32.Parse(m.Key);
+				var result = ((System.Net.HttpStatusCode) code).ToString();
 
-				var start = $"HttpStatusCode.{result}";
-
-				if (s.Value.Schema is null)
-				{
-					return Builder.Case(start, Builder.Line($"throw new ApiException(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response);")) with
-					{
-						HasBreak = false,
-					};
-				}
-
-				if (code is >= 200 and <= 299)
-				{
-					return Builder.Case(start, Builder.Line($"return await response.Content.ReadFromJsonAsync<{type}>(token);")) with
-					{
-						HasBreak = false,
-					};
-				}
-
-				return Builder.Case(start, Builder.Line($"throw new ApiException<{type}>(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response, await response.Content.ReadFromJsonAsync<{type}>(token));")) with
-				{
-					HasBreak = false
-				};
+				return result.Length;
 			});
+			
+			Builder.Append(method, Builder.Line($"return response.StatusCode switch"));
+			Builder.Append(method, Builder.Block(responses
+				.Select(s =>
+				{
+					var code = Int32.Parse(s.Key);
+					var result = ((System.Net.HttpStatusCode) code).ToString();
+					var type = Builder.ToTypeName(GetTypeName(s.Value.Schema));
+					var padding = new String(' ', length - result.Length);
 
-		Builder.Append(method, Builder.Switch("response.StatusCode", responseCodes, Builder.Case(String.Empty, Builder.Line("throw new InvalidOperationException(\"Unknown status code has been returned.\");")) with { HasBreak = false }));
+					var caseText = s.Value.Description.TrimEnd().Replace("\n", @"\n");
+
+					if (s.Value.Schema is null)
+					{
+						return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException(\"{caseText}\", response),");
+					}
+					
+					if (code is >= 200 and <= 299)
+					{
+						return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadFromJsonAsync<{type}>(token),");
+					}
+
+					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await response.Content.ReadFromJsonAsync<{type}>(token)),");
+				})
+				.Append(Builder.Line($"_{new String(' ', length + "HttpStatusCode".Length)} => throw new InvalidOperationException(\"Unknown status code has been returned.\"),")), ";"));
+		}
+		else
+		{
+			var responseCodes = responses
+				.Select(s =>
+				{
+					var code = Int32.Parse(s.Key);
+					var result = ((System.Net.HttpStatusCode) code).ToString();
+					var type = Builder.ToTypeName(GetTypeName(s.Value.Schema));
+
+					var start = $"HttpStatusCode.{result}";
+
+					if (s.Value.Schema is null)
+					{
+						return Builder.Case(start, Builder.Line($"throw new ApiException(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response);")) with
+						{
+							HasBreak = false,
+						};
+					}
+
+					if (code is >= 200 and <= 299)
+					{
+						return Builder.Case(start, Builder.Line($"return await response.Content.ReadFromJsonAsync<{type}>(token);")) with
+						{
+							HasBreak = false,
+						};
+					}
+
+					return Builder.Case(start, Builder.Line($"throw new ApiException<{type}>(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response, await response.Content.ReadFromJsonAsync<{type}>(token));")) with
+					{
+						HasBreak = false
+					};
+				});
+
+			Builder.Append(method, Builder.Switch("response.StatusCode", responseCodes, Builder.Case(String.Empty, Builder.Line("throw new InvalidOperationException(\"Unknown status code has been returned.\");")) with { HasBreak = false }));
+		}
 	}
 
 	private static ParameterBuilder ParseParameter(ParameterModel parameter)
@@ -336,7 +375,7 @@ public static class OpenApiV2Parser
 		{
 			var name = Builder.ToParameterName(header.Name);
 
-			if (header.Type == ParameterTypes.Binary || (header.Type == ParameterTypes.String && header.Format == "byte"))
+			if (header.Type == ParameterTypes.Binary || header is { Type: ParameterTypes.String, Format: "byte" })
 			{
 				name = $"Convert.ToBase64String({name})";
 			}
@@ -349,17 +388,24 @@ public static class OpenApiV2Parser
 				name = $"{name}.ToString()";
 			}
 
+			var headerText = $"request.Headers.Add(\"{header.Name}\", {name});";
+
+			if (header.Name == "authorization")
+			{
+				headerText = $"request.Headers.Authorization = new AuthenticationHeaderValue(\"Basic\", {name});";
+			}
+
 			if (!header.Required)
 			{
 				Builder.Append(method, Builder.WhiteLine());
 				Builder.Append(method, Builder.If($"{name} != null",
 				[
-					Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});")
+					Builder.Line(headerText),
 				]));
 			}
 			else
 			{
-				Builder.Append(method, Builder.Line($"request.Headers.Add(\"{header.Name}\", {name});"));
+				Builder.Append(method, Builder.Line(headerText));
 			}
 		}
 	}
