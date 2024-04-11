@@ -1,12 +1,10 @@
-using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 
 namespace OpenAPIGenerator;
 
 public class Program
 {
+	JsonPropertyNameAttribute
 	public static void Main(string[] args)
 	{
 		

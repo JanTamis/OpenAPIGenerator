@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace OpenAPIGenerator.Builders;
 
-public class PropertyBuilder : IBuilder
+public record PropertyBuilder : IBuilder
 {
 	public IEnumerable<AttributeBuilder> Attributes { get; set; }
 	public AccessModifier AccessModifier { get; set; } = AccessModifier.Public;
@@ -16,12 +16,19 @@ public class PropertyBuilder : IBuilder
 
 	public PropertyBuilder(string typeName, string name)
 	{
-		Name = BaseTypeBuilder.ToTypeName(name);
+		Name = Builder.ToTypeName(name);
 		TypeName = typeName;
 	}
 
 	public void Build(IndentedStringBuilder builder)
 	{
+		if (!String.IsNullOrWhiteSpace(Summary))
+		{
+			builder.AppendLine("/// <summary>");
+			builder.AppendLines(Summary!, x => $"/// {x}");
+			builder.AppendLine("/// </summary>");
+		}
+		
 		foreach (var attribute in Attributes)
 		{
 			attribute.Build(builder);
@@ -30,7 +37,7 @@ public class PropertyBuilder : IBuilder
 
 		builder.Append(AccessModifier.ToString().ToLower());
 		builder.Append(' ');
-		builder.Append(BaseTypeBuilder.ToTypeName(TypeName));
+		builder.Append(TypeName);
 		builder.Append(' ');
 		builder.Append(ConvertToCamelCase(Name));
 		builder.Append(' ');

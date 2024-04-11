@@ -15,7 +15,7 @@ public class TypeBuilder : BaseTypeBuilder
 
 	public TypeBuilder(string typeName)
 	{
-		TypeName = ToTypeName(typeName);
+		TypeName = Builder.ToTypeName(typeName);
 	}
 
 	public override void Build(IndentedStringBuilder builder)
@@ -64,7 +64,7 @@ public class TypeBuilder : BaseTypeBuilder
 		});
 
 		builder.Append(' ');
-		builder.Append(ToTypeName(TypeName));
+		builder.Append(TypeName);
 
 		builder.AppendLine();
 		builder.AppendLine("{");

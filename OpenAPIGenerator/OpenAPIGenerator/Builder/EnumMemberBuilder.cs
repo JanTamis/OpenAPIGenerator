@@ -4,7 +4,7 @@ namespace OpenAPIGenerator.Builders;
 
 public class EnumMemberBuilder(string name, params AttributeBuilder[] attributes) : IBuilder
 {
-	public string Name { get; set; } = BaseTypeBuilder.ToTypeName(name);
+	public string Name { get; set; } = Builder.ToTypeName(name);
 
 	public IEnumerable<AttributeBuilder> Attributes { get; set; } = attributes;
 

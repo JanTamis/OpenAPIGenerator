@@ -114,6 +114,11 @@ public static class Builder
 			return "string";
 		}
 
+		if (String.Equals(name, "object", StringComparison.InvariantCultureIgnoreCase))
+		{
+			return "object";
+		}
+
 		var parts = name.Split('_', '.', '-');
 
 		for (var i = 0; i < parts.Length; i++)

@@ -45,10 +45,10 @@ public class EnumBuilder : BaseTypeBuilder
 		builder.Append(' ');
 
 		builder.Append("enum ");
-		builder.Append(ToTypeName(TypeName));
+		builder.Append(TypeName);
 
 		builder.AppendLine();
 
-		new BlockBuilder(Members).Build(builder);
+		Builder.Block(Members).Build(builder);
 	}
 }
