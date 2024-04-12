@@ -8,6 +8,8 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.OpenApi.Models;
 using Microsoft.OpenApi.Readers;
 using OpenAPIGenerator.Builders;
+using Microsoft.OpenApi.Readers.Interface;
+using System.Runtime;
 
 namespace OpenAPIGenerator;
 
@@ -18,14 +20,14 @@ public class Generator : IIncrementalGenerator
 	{
 		var files = context.AdditionalTextsProvider
 			.Where(x => String.Equals(Path.GetExtension(x.Path), ".json"))
-			.Select((s, token) => (s.Path, s.GetText().ToString()));
+			.Select((s, token) => (s.Path, s.GetText()?.ToString()));
 
 		var compilationAndFiles = context.CompilationProvider.Combine(files.Collect());
 
 		context.RegisterSourceOutput(compilationAndFiles, Generate);
 	}
 
-	public void Generate(SourceProductionContext context, (Compilation compilation, ImmutableArray<(string path, string content)> files) compilationAndFiles)
+	public void Generate(SourceProductionContext context, (Compilation compilation, ImmutableArray<(string path, string? content)> files) compilationAndFiles)
 	{
 		var path = compilationAndFiles.compilation.SyntaxTrees
 			.Select(s => Path.GetDirectoryName(s.FilePath))
@@ -35,7 +37,6 @@ public class Generator : IIncrementalGenerator
 
 		context.AddSource("ApiException", $$""""
 			using System;
-			using System.Collections.Generic;
 			using System.Net;
 			using System.Net.Http;
 			using System.Net.Http.Headers;
@@ -74,7 +75,6 @@ public class Generator : IIncrementalGenerator
 
 		context.AddSource("ApiException`T", $$""""
 			using System;
-			using System.Collections.Generic;
 			using System.Net;
 			using System.Net.Http;
 			using System.Net.Http.Headers;
@@ -99,22 +99,25 @@ public class Generator : IIncrementalGenerator
 			}
 			"""");
 
+		var reader = new OpenApiTextReaderReader();
+
 		foreach (var file in compilationAndFiles.files)
 		{
-			var model = new OpenApiStreamReader().Read(new MemoryStream(Encoding.UTF8.GetBytes(file.content)), out var diagnostics);
+			using var stream = new StringReader(file.content);
+			var model = reader.Read(stream, out var diagnostics);
 
 			foreach (var diagnostic in diagnostics.Errors)
 			{
 				context.ReportDiagnostic(Diagnostic.Create(
 					new DiagnosticDescriptor(
 						"OpenAPIGenerator",
-						diagnostic.Message,
-						diagnostic.Message,
+						diagnostic.ToString(),
+						diagnostic.ToString(),
 						"OpenAPIGenerator",
-						DiagnosticSeverity.Warning,
+						DiagnosticSeverity.Error,
 						true
 					),
-					Location.None
+					Location.Create(file.path, default, default)
 				));
 			}
 
@@ -123,13 +126,13 @@ public class Generator : IIncrementalGenerator
 				context.ReportDiagnostic(Diagnostic.Create(
 					new DiagnosticDescriptor(
 						"OpenAPIGenerator",
-						diagnostic.Message,
-						diagnostic.Message,
+						diagnostic.ToString(),
+						diagnostic.ToString(),
 						"OpenAPIGenerator",
 						DiagnosticSeverity.Warning,
 						true
 					),
-					Location.None
+					Location.Create(file.path, default, default)
 				));
 			}
 
@@ -151,19 +154,18 @@ public class Generator : IIncrementalGenerator
 			Usings = ["System", "System.Text.Json.Serialization"],
 			Namespace = rootNamespace,
 			Summary = schema.Description,
-		};
-
-		builder.Properties = schema.Properties
-			.Select(s =>
-			{
-				var type = GetTypeName(s.Value);
-				//var type = s.Value.Type ?? Builder.ToTypeName(s.Value.Reference.Id);
-				return Builder.Property(type, s.Key) with
+			Properties = schema.Properties
+				.Select(s =>
 				{
-					Summary = s.Value.Description,
-					Attributes = [Builder.Attribute("JsonPropertyName", $"\"{s.Key}\"")],
-				};
-			});
+					var type = GetTypeName(s.Value);
+					//var type = s.Value.Type ?? Builder.ToTypeName(s.Value.Reference.Id);
+					return Builder.Property(type, s.Key) with
+					{
+						Summary = s.Value.Description,
+						Attributes = [Builder.Attribute("JsonPropertyName", $"\"{s.Key}\"")],
+					};
+				}),
+		};
 
 		return Builder.ToString(builder);
 	}

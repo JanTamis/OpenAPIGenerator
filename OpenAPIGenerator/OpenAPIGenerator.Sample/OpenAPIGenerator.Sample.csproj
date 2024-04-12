@@ -17,6 +17,7 @@
 
 	<ItemGroup>
 	  <None Remove="DSO.json" />
+	  <None Remove="OpenApi\account.json" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -25,9 +26,9 @@
 
 	<ItemGroup>
 	  <None Remove="Starter.json" />
+	  <AdditionalFiles Include="OpenApi\account.json" />
 	  <AdditionalFiles Include="OpenApi\Starter.json" />
 	  <None Remove="account.json" />
-	  <AdditionalFiles Include="OpenApi\account.json" />
 	  <None Remove="OpenApi\Authenticate.json" />
 	  <AdditionalFiles Include="OpenApi\Authenticate.json" />
 	</ItemGroup>
