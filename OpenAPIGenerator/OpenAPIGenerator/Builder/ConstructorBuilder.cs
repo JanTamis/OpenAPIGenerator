@@ -24,12 +24,12 @@ public class ConstructorBuilder : IBuilder, IContent
 			builder.AppendLine("/// </summary>");
 		}
 
-		foreach (var parameter in Parameters)
+		foreach (var parameter in Parameters ?? [])
 		{
 			if (!String.IsNullOrWhiteSpace(parameter.Documentation))
 			{
 				builder.Append($"/// <param name=\"{parameter.Name}\">");
-				builder.AppendLines(parameter.Documentation, x => $"/// {x}", false);
+				builder.AppendLines(parameter.Documentation!, x => $"/// {x}", false, skipFinalNewline: true);
 				builder.AppendLine("</param>");
 			}
 		}
@@ -41,7 +41,7 @@ public class ConstructorBuilder : IBuilder, IContent
 
 		var isFirst = true;
 
-		foreach (var parameter in Parameters)
+		foreach (var parameter in Parameters ?? [])
 		{
 			if (!isFirst)
 			{

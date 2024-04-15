@@ -3,13 +3,8 @@ using Microsoft.CodeAnalysis;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Text;
-using Microsoft.CodeAnalysis.Text;
-using Microsoft.OpenApi.Models;
 using Microsoft.OpenApi.Readers;
 using OpenAPIGenerator.Builders;
-using Microsoft.OpenApi.Readers.Interface;
-using System.Runtime;
 
 namespace OpenAPIGenerator;
 
@@ -99,6 +94,236 @@ public class Generator : IIncrementalGenerator
 			}
 			"""");
 
+		context.AddSource("UrlBuilder", $$"""
+			using System;
+			using System.Buffers;
+			using System.Runtime.CompilerServices;
+
+			namespace {{rootNamespace}};
+
+			public struct UrlBuilder
+			{
+				private ArrayPool<char> _pool;
+				private char[] _buffer;
+				private int _index;
+			
+				private bool hasQuery = false;
+			
+				public UrlBuilder()
+				{
+					_pool = ArrayPool<char>.Shared;
+					_buffer = _pool.Rent(128);
+					_index = 0;
+				}
+			
+				public UrlBuilder(UrlBuilderHandler builder, bool hasQuery)
+				{
+					_pool = builder._pool;
+					_buffer = builder._buffer;
+					_index = builder._index;
+					this.hasQuery = hasQuery;
+				}
+			
+				public void AppendQuery(string key, string? value)
+				{
+					if (value is not null)
+					{
+						value = Uri.EscapeDataString(value);
+			
+						if (!hasQuery)
+						{
+							Append('?');
+							hasQuery = true;
+						}
+			
+						AppendLiteral(key);
+						Append('=');
+						AppendLiteral(value);
+						Append('&');
+					}
+				}
+			
+				public void AppendQuery<T>(string key, T value) where T : ISpanFormattable
+				{
+					if (!hasQuery)
+					{
+						Append('?');
+						hasQuery = true;
+					}
+			
+					AppendLiteral(key);
+					Append('=');
+					AppendFormatted(value);
+					Append('&');
+				}
+			
+				public void AppendQuery<T>(string key, T? value) where T : struct, ISpanFormattable
+				{
+					if (value.HasValue)
+					{
+						AppendQuery(key, value.Value);
+					}
+				}
+			
+				public string ToStringAndClear()
+				{
+					var result = new string(_buffer, 0, _index);
+			
+					_pool.Return(_buffer);
+			
+					return result;
+				}
+			
+				private void AppendLiteral(string? s)
+				{
+					if (s is not null)
+					{
+						s = Uri.EscapeDataString(s);
+			
+						while (!s.TryCopyTo(GetBuffer()))
+						{
+							Grow();
+						}
+			
+						_index += s.Length;
+					}
+				}
+			
+				private void AppendFormatted<T>(T item) where T : ISpanFormattable
+				{
+					var charsWritten = 0;
+			
+					while (!item.TryFormat(GetBuffer(), out charsWritten, ReadOnlySpan<char>.Empty, null))
+					{
+						Grow();
+					}
+			
+					_index += charsWritten;
+				}
+			
+				private void AppendFormatted<T>(T? item) where T : struct, ISpanFormattable
+				{
+					if (item.HasValue)
+					{
+						AppendFormatted(item.Value);
+					}
+				}
+			
+				public void Append(char item)
+				{
+					if (_index >= _buffer.Length)
+					{
+						Grow();
+					}
+			
+					_buffer[_index++] = item;
+				}
+			
+				private void Grow()
+				{
+					var buffer = _buffer;
+					_buffer = _pool.Rent(buffer.Length * 2);
+					buffer.CopyTo(_buffer, 0);
+			
+					_pool.Return(buffer);
+				}
+			
+				private Span<char> GetBuffer()
+				{
+					if (_index >= _buffer.Length)
+					{
+						return Span<char>.Empty;
+					}
+			
+					return _buffer.AsSpan(_index);
+				}
+			
+				[InterpolatedStringHandler]
+				public ref struct UrlBuilderHandler
+				{
+					public readonly ArrayPool<char> _pool;
+					public char[] _buffer;
+					public int _index;
+			
+					public UrlBuilderHandler(int literalLength, int formattedCount)
+					{
+						_pool = ArrayPool<char>.Shared;
+						_buffer = _pool.Rent(literalLength + formattedCount * 11);
+						_index = 0;
+					}
+			
+					public void AppendLiteral(string? s)
+					{
+						if (s is not null)
+						{
+							s = Uri.EscapeDataString(s);
+			
+							while (!s.TryCopyTo(GetBuffer()))
+							{
+								Grow();
+							}
+			
+							_index += s.Length;
+						}
+					}
+			
+					public void AppendFormatted<T>(T item) where T : ISpanFormattable
+					{
+						var charsWritten = 0;
+			
+						while (!item.TryFormat(GetBuffer(), out charsWritten, ReadOnlySpan<char>.Empty, null))
+						{
+							Grow();
+						}
+			
+						_index += charsWritten;
+					}
+					
+					public void AppendFormatted(string item)
+					{
+						AppendLiteral(item);
+					}
+			
+					public void AppendFormatted<T>(T? item) where T : struct, ISpanFormattable
+					{
+						if (item.HasValue)
+						{
+							AppendFormatted(item.Value);
+						}
+					}
+			
+					public void Append(char item)
+					{
+						if (_index >= _buffer.Length)
+						{
+							Grow();
+						}
+			
+						_buffer[_index++] = item;
+					}
+			
+					private void Grow()
+					{
+						var buffer = _buffer;
+						_buffer = _pool.Rent(buffer.Length * 2);
+						buffer.CopyTo(_buffer, 0);
+			
+						_pool.Return(buffer);
+					}
+			
+					private Span<char> GetBuffer()
+					{
+						if (_index >= _buffer.Length)
+						{
+							return Span<char>.Empty;
+						}
+			
+						return _buffer.AsSpan(_index);
+					}
+				}
+			}
+			""");
+
 		var reader = new OpenApiTextReaderReader();
 
 		foreach (var file in compilationAndFiles.files)
@@ -136,53 +361,16 @@ public class Generator : IIncrementalGenerator
 				));
 			}
 
-			foreach (var item in model.Components.Schemas)
-			{
-				// context.AddSource($"Models/{BaseTypeBuilder.ToTypeName(name)}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
-				context.AddSource(Builder.ToTypeName(item.Key), ToType(item.Value, Builder.ToTypeName(item.Key), rootNamespace));
-			}
+			// foreach (var item in model.Components.Schemas)
+			// {
+			// 	// context.AddSource($"Models/{BaseTypeBuilder.ToTypeName(name)}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
+			// 	context.AddSource(Builder.ToTypeName(item.Key), ToType(item.Value, Builder.ToTypeName(item.Key), rootNamespace));
+			// }
+			
+			context.AddSource(Builder.ToTypeName(model.Info.Title), OpenApiParser.Parse(model, rootNamespace));
 
 			// // context.AddSource("UnprocessableEntity", "public class UnprocessableEntity {}");
 			// context.AddSource(model.Info.Title.Replace(' ', '_'), OpenApiV2.OpenApiV2Parser.Parse(model, rootNamespace));
 		}
-	}
-
-	private string ToType(OpenApiSchema schema, string typeName, string rootNamespace)
-	{
-		var builder = new TypeBuilder(typeName)
-		{
-			Usings = ["System", "System.Text.Json.Serialization"],
-			Namespace = rootNamespace,
-			Summary = schema.Description,
-			Properties = schema.Properties
-				.Select(s =>
-				{
-					var type = GetTypeName(s.Value);
-					//var type = s.Value.Type ?? Builder.ToTypeName(s.Value.Reference.Id);
-					return Builder.Property(type, s.Key) with
-					{
-						Summary = s.Value.Description,
-						Attributes = [Builder.Attribute("JsonPropertyName", $"\"{s.Key}\"")],
-					};
-				}),
-		};
-
-		return Builder.ToString(builder);
-	}
-
-	private string GetTypeName(OpenApiSchema schema)
-	{
-		var type = schema.Type;
-		
-		if (schema.Items is not null)
-		{
-			type = GetTypeName(schema.Items) + "[]";
-		}
-		else if (schema.Reference is not null)
-		{
-			type = schema.Reference.Id;
-		}
-
-		return Builder.ToTypeName(type + (schema.Nullable ? "?" : ""));
 	}
 }

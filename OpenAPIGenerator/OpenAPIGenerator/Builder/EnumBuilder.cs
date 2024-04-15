@@ -7,6 +7,7 @@ namespace OpenAPIGenerator.Builders;
 public class EnumBuilder : BaseTypeBuilder
 {
 	public IEnumerable<EnumMemberBuilder>? Members { get; set; }
+	
 	public override void Build(IndentedStringBuilder builder)
 	{
 		foreach (var @using in Usings)
@@ -49,6 +50,25 @@ public class EnumBuilder : BaseTypeBuilder
 
 		builder.AppendLine();
 
-		Builder.Block(Members).Build(builder);
+		builder.AppendLine("{");
+
+		var isFirst = true;
+
+		using (builder.Indent())
+		{
+			foreach (var item in Members ?? [])
+			{
+				if (!isFirst && (item.Summary != null || item.Attributes.Any()))
+				{
+					builder.AppendLine();
+				}
+				item.Build(builder);
+				builder.AppendLine();
+
+				isFirst = false;
+			}
+		}
+
+		builder.Append('}');
 	}
 }

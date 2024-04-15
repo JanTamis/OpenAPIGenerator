@@ -17,19 +17,19 @@
   "security": [
     {
       "clientId": [],
-      "oauth2 access code flow": [
+      "oauth2_access_code_flow": [
         "ais.balances.read"
       ]
     },
     {
       "clientId": [],
-      "oauth2 access code flow": [
+      "oauth2_access_code_flow": [
         "ais.transactions.read-90days"
       ]
     },
     {
       "clientId": [],
-      "oauth2 access code flow": [
+      "oauth2_access_code_flow": [
         "ais.transactions.read-history"
       ]
     }
@@ -287,7 +287,7 @@
     }
   },
   "securityDefinitions": {
-    "oauth2 access code flow": {
+    "oauth2_access_code_flow": {
       "description": "NOTE Please use the Authorization and Token URL as provided by the oAuth2 Services",
       "type": "oauth2",
       "authorizationUrl": "https://oauth-sandbox.rabobank.nl/openapi/sandbox/oauth2/authorize",
@@ -586,7 +586,7 @@
       }
     ],
     "oauth-servers": {
-      "oauth2 access code flow": {
+      "oauth2_access_code_flow": {
         "tokenUrls": [
           "https://oauth-sandbox.rabobank.nl/openapi/sandbox/oauth2/token"
         ],
