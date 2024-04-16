@@ -83,6 +83,9 @@ public static class OpenApiParser
 			Methods = ParsePaths(document.Paths).Append(Builder.Method("Dispose", Builder.Line("Client.Dispose();"))),
 		};
 
+		type.Methods = type.Methods.Append(Builder.Method("ParseResponse<T>", "virtual Task<T?>", false, AccessModifier.Public,
+			[Builder.Parameter("HttpResponseMessage", "response"), Builder.Parameter("CancellationToken", "token", "default")], [Builder.Line("return response.Content.ReadFromJsonAsync<T>(token);")]));
+
 		return type;
 	}
 
@@ -311,15 +314,15 @@ public static class OpenApiParser
 
 				if (code is >= 200 and <= 299)
 				{
-					return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadFromJsonAsync<{type}>(token),");
+					return Builder.Line($"HttpStatusCode.{result}{padding} => await ParseResponse<{type}>(response, token),");
 				}
 
 				if (hasReturnType)
 				{
-					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await response.Content.ReadFromJsonAsync<{type}>(token)),");
+					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token)),");
 				}
 
-				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, await response.Content.ReadFromJsonAsync<{type}>(token)),");
+				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token)),");
 			})
 			.Append(Builder.Line($"_{new String(' ', length + "HttpStatusCode".Length)} => {(hasReturnType ? "throw " : String.Empty)}new InvalidOperationException(\"Unknown status code has been returned.\"),")), ";");
 
