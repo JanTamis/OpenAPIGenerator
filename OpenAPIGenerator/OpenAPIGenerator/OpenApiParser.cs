@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Expressions;
@@ -17,7 +18,9 @@ public static class OpenApiParser
 
 			#region Schema's
 			
-			{String.Join("\n\n", document.Components.Schemas.Select(s => ToType(s.Value, s.Key)))}
+			{String.Join("\n\n", document.Components.Schemas
+				.Where(w => w.Value.Type is "object" or null)
+				.Select(s => ToType(s.Value, s.Key)))}
 			
 			#endregion
 			""";
@@ -109,10 +112,26 @@ public static class OpenApiParser
 				.First() + '?',
 			Content = ParseRequestPath(path, operation.Parameters),
 		};
+
+		var parameterCheck = operation.Parameters
+			.Where(w => w.Required)
+			.Select(ParseParametersCheck)
+			.Where(w => w != null);
+
+		if (parameterCheck.Any())
+		{
+			parameterCheck = parameterCheck.Append(Builder.WhiteLine());
+		}
+
+		method.Content = parameterCheck.Concat(method.Content);
 		
-		if (operation.Parameters.Any(w => (!w.Required && w.In == ParameterLocation.Query)))
+		if (operation.Parameters.Any(a => !a.Required && a.In is ParameterLocation.Query))//  || operation.Parameters.Any(a => a.In is ParameterLocation.Path))
 		{
 			Builder.Append(method, Builder.WhiteLine());
+		}
+
+		if (operation.Parameters.Any(w => w.In is ParameterLocation.Query or ParameterLocation.Path))
+		{
 			Builder.Append(method, Builder.Line($"var request = new HttpRequestMessage(HttpMethod.{type}, new Uri(url.ToStringAndClear()));"));
 		}
 		else
@@ -187,7 +206,7 @@ public static class OpenApiParser
 		{
 			if (hasQueryHoles || hasHoles)
 			{
-				yield return Builder.Line($"var url = $\"{result}\";");
+				yield return Builder.Line($"var url = new UrlBuilder($\"{result}\", false);");
 			}
 			else
 			{
@@ -217,10 +236,26 @@ public static class OpenApiParser
 			.SelectMany<OpenApiParameter, IBuilder>(s =>
 			{
 				var parameterName = Builder.ToParameterName(s.Name);
+
+				var headerText = s.Schema.Format switch
+				{
+					"uri"       => $"{parameterName}.ToString()",
+					"uuid"      => $"{parameterName}.ToString()",
+					"int32"     => $"{parameterName}.ToString()",
+					"int64"     => $"{parameterName}.ToString()",
+					"float"     => $"{parameterName}.ToString()",
+					"double"    => $"{parameterName}.ToString()",
+					"byte"      => $"Convert.ToBase64String({parameterName})",
+					"binary"    => $"Convert.ToBase64String({parameterName})",
+					"date"      => $"{parameterName}.ToString()",
+					"date-time" => $"{parameterName}.ToString()",
+					"password"  => $"{parameterName}.ToString()",
+					_           => parameterName,
+				};
 				
 				if (s.Required)
 				{
-					return [Builder.Line($"request.Headers.Add(\"{s.Name}\", {parameterName});")];
+					return [Builder.Line($"request.Headers.Add(\"{s.Name}\", {headerText});")];
 				}
 
 				return
@@ -228,7 +263,7 @@ public static class OpenApiParser
 					Builder.WhiteLine(),
 					Builder.If($"{parameterName} != null",
 					[
-						Builder.Line($"request.Headers.Add(\"{s.Name}\", {parameterName});"),
+						Builder.Line($"request.Headers.Add(\"{s.Name}\", {headerText});"),
 					]),
 				];
 			});
@@ -341,26 +376,34 @@ public static class OpenApiParser
 			Properties = schema.Properties
 				.Select(s =>
 				{
+					var isRequired  = schema.Required.Contains(s.Key);
 					var type = GetTypeName(s.Value);
 					//var type = s.Value.Type ?? Builder.ToTypeName(s.Value.Reference.Id);
 
-					if (!String.IsNullOrWhiteSpace(schema.Pattern))
+					if (!isRequired)
 					{
-						return Builder.Property(type, s.Key) with
-						{
-							Summary = s.Value.Description,
-							Attributes =
-							[
-								Builder.Attribute("JsonPropertyName", $"\"{s.Key}\""),
-								Builder.Attribute("RegularExpression", $"@\"{schema.Pattern}\"")
-							],
-						};
+						type += "?";
+					}
+
+					var attributes = new List<AttributeBuilder>()
+					{
+						Builder.Attribute("JsonPropertyName", $"\"{s.Key}\""),
+					};
+
+					if (!String.IsNullOrWhiteSpace(s.Value.Pattern))
+					{
+						attributes.Add(Builder.Attribute("RegularExpression", $"@\"{s.Value.Pattern}\""));
+					}
+
+					if (s.Value.MaxLength.HasValue)
+					{
+						attributes.Add(Builder.Attribute("MaxLength", s.Value.MaxLength.Value.ToString()));
 					}
 
 					return Builder.Property(type, s.Key) with
 					{
 						Summary = s.Value.Description,
-						Attributes = [Builder.Attribute("JsonPropertyName", $"\"{s.Key}\"")],
+						Attributes = attributes,
 					};
 				}),
 		};
@@ -370,16 +413,49 @@ public static class OpenApiParser
 
 	private static string GetTypeName(OpenApiSchema schema)
 	{
-		if (schema is null or { Type: null })
+		if (schema is null)
 		{
 			return String.Empty;
 		}
 		
 		var type = schema.Type;
 
+		if (type is "integer")
+		{
+			type = "int";
+		}
+
 		if (schema.Items is not null)
 		{
 			type = $"{GetTypeName(schema.Items)}[]";
+		}
+
+		else if (schema.Type is not null && schema.Type != "object")
+		{
+			if (schema is { Type: "string", Format: "byte" })
+			{
+				return "byte[]" + (schema.Nullable ? "?" : "");
+			}
+			if (!String.IsNullOrEmpty(schema.Format))
+			{
+				return schema.Format switch
+				{
+					"uri" => "Uri",
+					"uuid" => "Guid",
+					"int32" => "int",
+					"int64" => "long",
+					"float" => "float",
+					"double" => "double",
+					"byte" => "byte",
+					"binary" => "byte[]",
+					"date" => "DateTime",
+					"date-time" => "DateTime",
+					"password" => "string",
+					_ => schema.Format,
+				} + (schema.Nullable ? "?" : "");
+			}
+
+			return type;
 		}
 		else if (schema.Reference is not null)
 		{
@@ -387,5 +463,43 @@ public static class OpenApiParser
 		}
 
 		return Builder.ToTypeName(type + (schema.Nullable ? "?" : ""));
+	}
+
+	private static IBuilder? ParseParametersCheck(OpenApiParameter parameter)
+	{
+		var schema = parameter.Schema;
+		var parameterName = Builder.ToParameterName(parameter.Name);
+		
+		if (schema is null)
+		{
+			return null;
+		}
+		
+		if (schema.Items is null && schema.Type is not null && schema.Type != "object")
+		{
+			if (schema is { Type: "string", Format: "byte" })
+			{
+				return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName}, nameof({parameterName}));");
+			}
+
+			if (!String.IsNullOrEmpty(schema.Format))
+			{
+				switch (schema.Format)
+				{
+					case "uri":
+					case "uuid":
+					case "int32":
+					case "int64":
+					case "float":
+					case "double":
+					case "byte":
+					case "date":
+					case "date-time":
+						return null;
+				}
+			}
+		}
+
+		return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName}, nameof({parameterName}));");
 	}
 }
