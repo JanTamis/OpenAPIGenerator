@@ -98,17 +98,17 @@ public static class OpenApiParser
 
 	private static MethodBuilder ParseOperation(string path, OperationType type, OpenApiOperation operation, bool hasHeaders)
 	{
-		var method = Builder.Method(Builder.ToTypeName(operation.OperationId)) with
+		var method = Builder.Method($"{Builder.ToTypeName(operation.OperationId)}Async") with
 		{
 			Parameters = operation.Parameters
 				.OrderByDescending(o => o.Required)
-				.Select(s => Builder.Parameter(GetTypeName(s.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: s.Description))
+				.Select(s => Builder.Parameter(GetTypeName(s.Schema ?? s.Content.FirstOrDefault().Value.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: s.Description))
 				.Append(Builder.Parameter("CancellationToken", "token", "default", "The cancellation token to cancel the request (optional).")),
 			Summary = operation.Description,
 			IsAsync = true,
 			ReturnType = operation.Responses
 				.Where(a => Int32.TryParse(a.Key, out var code) && code is >= 200 and <= 299)
-				.Select(s => Builder.ToTypeName(GetTypeName(s.Value.Content.Values.First().Schema)))
+				.Select(s => Builder.ToTypeName(GetTypeName(s.Value.Content.Values.FirstOrDefault()?.Schema)))
 				.First() + '?',
 			Content = ParseRequestPath(path, operation.Parameters),
 		};
@@ -143,14 +143,14 @@ public static class OpenApiParser
 		
 		//ParseResponse(operation.Responses, method, false);
 		
-		var hasReturnType = operation.Responses.Any(a => Int32.TryParse(a.Key, out var code) && code is >= 200 and <= 299 && a.Value.Content.Values.First().Schema is not null);
+		var hasReturnType = operation.Responses.Any(a => Int32.TryParse(a.Key, out var code) && code is >= 200 and <= 299 && a.Value.Content.Values.FirstOrDefault()?.Schema is not null);
 
 		// if (hasHeaders)
 		// {
 			Builder.Append(method, Builder.WhiteLine());
 		// }
 		
-		Builder.Append(method, Builder.Line("var response = await Client.SendAsync(request, token);"));
+		Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, token);"));
 		Builder.Append(method, Builder.WhiteLine());
 		Builder.Append(method, ParseResponse(operation.Responses, hasReturnType));
 		
@@ -198,20 +198,13 @@ public static class OpenApiParser
 			result = result.TrimEnd('&', '?');
 		}
 
-		if (optionalParameters.Any())
+		if (hasQueryHoles || hasHoles || optionalParameters.Any())
 		{
-			yield return Builder.Line($"var url = new UrlBuilder($\"{result}\", {hasQueryHoles.ToString().ToLower()});");
+			yield return Builder.Line($"var url = new UrlBuilder($\"{result.TrimEnd('?')}\");");
 		}
 		else
 		{
-			if (hasQueryHoles || hasHoles)
-			{
-				yield return Builder.Line($"var url = new UrlBuilder($\"{result}\", false);");
-			}
-			else
-			{
-				yield return Builder.Line($"var url = \"{result}\";");
-			}
+			yield return Builder.Line($"var url = \"{result.TrimEnd('?', '&')}\";");
 		}
 
 		if (optionalParameters.Any())
@@ -278,77 +271,58 @@ public static class OpenApiParser
 
 	private static IEnumerable<IBuilder> ParseResponse(OpenApiResponses responses, bool hasReturnType)
 	{
+		var length = responses.Max(m =>
+		{
+			var code = Int32.Parse(m.Key);
+			var result = ((System.Net.HttpStatusCode)code).ToString();
+
+			return result.Length;
+		});
+
 		if (hasReturnType)
 		{
-			var length = responses.Max(m =>
-			{
-				var code = Int32.Parse(m.Key);
-				var result = ((System.Net.HttpStatusCode) code).ToString();
-	
-				return result.Length;
-			});
-			
 			yield return Builder.Line($"return response.StatusCode switch");
-			
-			yield return Builder.Block(responses
-				.Select(s =>
-				{
-					var code = Int32.Parse(s.Key);
-					var result = ((System.Net.HttpStatusCode) code).ToString();
-					var type = Builder.ToTypeName(GetTypeName(s.Value.Content.Values.First().Schema));
-					var padding = new String(' ', length - result.Length);
-	
-					var caseText = s.Value.Description.TrimEnd().Replace("\n", @"\n");
-	
-					if (String.IsNullOrWhiteSpace(type))
-					{
-						return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException(\"{caseText}\", response),");
-					}
-					
-					if (code is >= 200 and <= 299)
-					{
-						return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadFromJsonAsync<{type}>(token),");
-					}
-	
-					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await response.Content.ReadFromJsonAsync<{type}>(token)),");
-				})
-				.Append(Builder.Line($"_{new String(' ', length + "HttpStatusCode".Length)} => throw new InvalidOperationException(\"Unknown status code has been returned.\"),")), ";");
 		}
 		else
 		{
-			var responseCodes = responses
-				.Select(s =>
-				{
-					var code = Int32.Parse(s.Key);
-					var result = ((System.Net.HttpStatusCode) code).ToString();
-					var type = Builder.ToTypeName(GetTypeName(s.Value.Content.Values.First().Schema));
-	
-					var start = $"HttpStatusCode.{result}";
-	
-					if (String.IsNullOrWhiteSpace(type))
-					{
-						return Builder.Case(start, Builder.Line($"throw new ApiException(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response);")) with
-						{
-							HasBreak = false,
-						};
-					}
-	
-					if (code is >= 200 and <= 299)
-					{
-						return Builder.Case(start, Builder.Line($"return await response.Content.ReadFromJsonAsync<{type}>(token);")) with
-						{
-							HasBreak = false,
-						};
-					}
-	
-					return Builder.Case(start, Builder.Line($"throw new ApiException<{type}>(\"{s.Value.Description.TrimEnd().Replace("\n", @"\n")}\", response, await response.Content.ReadFromJsonAsync<{type}>(token));")) with
-					{
-						HasBreak = false
-					};
-				});
-	
-			yield return Builder.Switch("response.StatusCode", responseCodes, Builder.Case(String.Empty, Builder.Line("throw new InvalidOperationException(\"Unknown status code has been returned.\");")) with { HasBreak = false });
+			yield return Builder.Line($"throw response.StatusCode switch");
 		}
+
+		yield return Builder.Block(responses
+			.Select(s =>
+			{
+				var code = Int32.Parse(s.Key);
+				var result = ((System.Net.HttpStatusCode)code).ToString();
+				var type = Builder.ToTypeName(GetTypeName(s.Value.Content.Values.FirstOrDefault()?.Schema));
+				var padding = new String(' ', length - result.Length);
+
+				var caseText = s.Value.Description.TrimEnd().Replace("\n", @"\n");
+
+				if (String.IsNullOrWhiteSpace(type))
+				{
+					if (hasReturnType)
+					{
+						return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException(\"{caseText}\", response),");
+					}
+
+					return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException(\"{caseText}\", response),");
+
+				}
+
+				if (code is >= 200 and <= 299)
+				{
+					return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadFromJsonAsync<{type}>(token),");
+				}
+
+				if (hasReturnType)
+				{
+					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await response.Content.ReadFromJsonAsync<{type}>(token)),");
+				}
+
+				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, await response.Content.ReadFromJsonAsync<{type}>(token)),");
+			})
+			.Append(Builder.Line($"_{new String(' ', length + "HttpStatusCode".Length)} => {(hasReturnType ? "throw " : String.Empty)}new InvalidOperationException(\"Unknown status code has been returned.\"),")), ";");
+
 	}
 
 	private static string ToType(OpenApiSchema schema, string typeName)
@@ -411,7 +385,7 @@ public static class OpenApiParser
 		return Builder.ToString(builder);
 	}
 
-	private static string GetTypeName(OpenApiSchema schema)
+	private static string GetTypeName(OpenApiSchema? schema)
 	{
 		if (schema is null)
 		{
@@ -447,6 +421,7 @@ public static class OpenApiParser
 					"float" => "float",
 					"double" => "double",
 					"byte" => "byte",
+					"boolean" => "bool",
 					"binary" => "byte[]",
 					"date" => "DateTime",
 					"date-time" => "DateTime",
@@ -479,7 +454,7 @@ public static class OpenApiParser
 		{
 			if (schema is { Type: "string", Format: "byte" })
 			{
-				return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName}, nameof({parameterName}));");
+				return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName});");
 			}
 
 			if (!String.IsNullOrEmpty(schema.Format))
@@ -500,6 +475,6 @@ public static class OpenApiParser
 			}
 		}
 
-		return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName}, nameof({parameterName}));");
+		return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName});");
 	}
 }

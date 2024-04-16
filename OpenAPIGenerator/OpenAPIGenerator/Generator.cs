@@ -50,7 +50,7 @@ public class Generator : IIncrementalGenerator
 				
 				}
 			
-				public ApiException(string message, HttpStatusCode statusCode, HttpResponseHeaders headers, Exception innerException)
+				public ApiException(string message, HttpStatusCode statusCode, HttpResponseHeaders headers, Exception? innerException)
 						: base($"""
 					{message}
 					
@@ -86,7 +86,7 @@ public class Generator : IIncrementalGenerator
 				
 				}
 			
-				public ApiException(string message, HttpStatusCode statusCode, HttpResponseHeaders headers, TResult? result, Exception innerException)
+				public ApiException(string message, HttpStatusCode statusCode, HttpResponseHeaders headers, TResult? result, Exception? innerException)
 						: base(message, statusCode, headers, innerException)
 				{
 					Result = result;
@@ -116,12 +116,12 @@ public class Generator : IIncrementalGenerator
 					_index = 0;
 				}
 			
-				public UrlBuilder(UrlBuilderHandler builder, bool hasQuery)
+				public UrlBuilder(UrlBuilderHandler builder)
 				{
 					_pool = builder._pool;
 					_buffer = builder._buffer;
 					_index = builder._index;
-					this.hasQuery = hasQuery;
+					this.hasQuery = _buffer.AsSpan(0, _index).Contains('?');
 				}
 			
 				public void AppendQuery(string key, string? value)

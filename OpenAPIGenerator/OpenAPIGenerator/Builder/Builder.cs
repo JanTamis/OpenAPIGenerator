@@ -144,6 +144,8 @@ public static class Builder
 			return "string";
 		}
 
+		name = name.Trim('_', '-', '.');
+
 		var parts = name.Split('_', '-', '.');
 
 		parts[0] = parts[0].ToLower();
