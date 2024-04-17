@@ -14,7 +14,7 @@ public class Generator : IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var files = context.AdditionalTextsProvider
-			.Where(x => String.Equals(Path.GetExtension(x.Path), ".json"))
+			.Where(x => Path.GetExtension(x.Path).ToLower() is ".json" or ".yaml")
 			.Select((s, token) => (s.Path, s.GetText()?.ToString()));
 
 		var compilationAndFiles = context.CompilationProvider.Combine(files.Collect());
@@ -24,6 +24,11 @@ public class Generator : IIncrementalGenerator
 
 	public void Generate(SourceProductionContext context, (Compilation compilation, ImmutableArray<(string path, string? content)> files) compilationAndFiles)
 	{
+		if (!compilationAndFiles.files.Any())
+		{
+			return;
+		}
+
 		var path = compilationAndFiles.compilation.SyntaxTrees
 			.Select(s => Path.GetDirectoryName(s.FilePath))
 			.FirstOrDefault() ?? String.Empty;
@@ -361,16 +366,7 @@ public class Generator : IIncrementalGenerator
 				));
 			}
 
-			// foreach (var item in model.Components.Schemas)
-			// {
-			// 	// context.AddSource($"Models/{BaseTypeBuilder.ToTypeName(name)}", OpenApiV2.OpenApiV2Parser.ParseObject(name.TrimStart('_'), item.Value, rootNamespace));
-			// 	context.AddSource(Builder.ToTypeName(item.Key), ToType(item.Value, Builder.ToTypeName(item.Key), rootNamespace));
-			// }
-			
 			context.AddSource(Builder.ToTypeName(model.Info.Title), OpenApiParser.Parse(model, rootNamespace));
-
-			// // context.AddSource("UnprocessableEntity", "public class UnprocessableEntity {}");
-			// context.AddSource(model.Info.Title.Replace(' ', '_'), OpenApiV2.OpenApiV2Parser.Parse(model, rootNamespace));
 		}
 	}
 }

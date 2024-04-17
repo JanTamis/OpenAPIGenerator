@@ -84,7 +84,7 @@ public static class OpenApiParser
 		};
 
 		type.Methods = type.Methods.Append(Builder.Method("ParseResponse<T>", "virtual Task<T?>", false, AccessModifier.Public,
-			[Builder.Parameter("HttpResponseMessage", "response"), Builder.Parameter("CancellationToken", "token", "default")], [Builder.Line("return response.Content.ReadFromJsonAsync<T>(token);")]));
+			[Builder.Parameter("HttpResponseMessage", "response"), Builder.Parameter("CancellationToken", "token")], [Builder.Line("return response.Content.ReadFromJsonAsync<T>(token);")]));
 
 		return type;
 	}
@@ -105,8 +105,7 @@ public static class OpenApiParser
 		{
 			Parameters = operation.Parameters
 				.OrderByDescending(o => o.Required)
-				.Select(s => Builder.Parameter(GetTypeName(s.Schema ?? s.Content.FirstOrDefault().Value.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: s.Description))
-				.Append(Builder.Parameter("CancellationToken", "token", "default", "The cancellation token to cancel the request (optional).")),
+				.Select(s => Builder.Parameter(GetTypeName(s.Schema ?? s.Content.FirstOrDefault().Value.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: s.Description)),
 			Summary = operation.Description,
 			IsAsync = true,
 			ReturnType = operation.Responses
@@ -115,6 +114,16 @@ public static class OpenApiParser
 				.First() + '?',
 			Content = ParseRequestPath(path, operation.Parameters),
 		};
+
+		if (operation.RequestBody?.Content?.Count > 0)
+		{
+			var mediaType = operation.RequestBody.Content.First();
+			var typeName = GetTypeName(mediaType.Value.Schema);
+
+			method.Parameters = method.Parameters.Append(Builder.Parameter($"{typeName}?", "body", "null"));
+		}
+
+		method.Parameters = method.Parameters.Append(Builder.Parameter("CancellationToken", "token", "default", "The cancellation token to cancel the request (optional)."));
 
 		var parameterCheck = operation.Parameters
 			.Where(w => w.Required)
@@ -153,7 +162,7 @@ public static class OpenApiParser
 			Builder.Append(method, Builder.WhiteLine());
 		// }
 		
-		Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, token);"));
+		Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, token).ConfigureAwait(false);"));
 		Builder.Append(method, Builder.WhiteLine());
 		Builder.Append(method, ParseResponse(operation.Responses, hasReturnType));
 		
@@ -319,10 +328,10 @@ public static class OpenApiParser
 
 				if (hasReturnType)
 				{
-					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token)),");
+					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token).ConfigureAwait(false)),");
 				}
 
-				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token)),");
+				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token).ConfigureAwait(false)),");
 			})
 			.Append(Builder.Line($"_{new String(' ', length + "HttpStatusCode".Length)} => {(hasReturnType ? "throw " : String.Empty)}new InvalidOperationException(\"Unknown status code has been returned.\"),")), ";");
 
@@ -377,6 +386,11 @@ public static class OpenApiParser
 						attributes.Add(Builder.Attribute("MaxLength", s.Value.MaxLength.Value.ToString()));
 					}
 
+					if (s.Value.MinLength.HasValue)
+					{
+						attributes.Add(Builder.Attribute("MinLength", s.Value.MinLength.Value.ToString()));
+					}
+
 					return Builder.Property(type, s.Key) with
 					{
 						Summary = s.Value.Description,
@@ -406,41 +420,39 @@ public static class OpenApiParser
 		{
 			type = $"{GetTypeName(schema.Items)}[]";
 		}
-
 		else if (schema.Type is not null && schema.Type != "object")
 		{
 			if (schema is { Type: "string", Format: "byte" })
 			{
 				return "byte[]" + (schema.Nullable ? "?" : "");
 			}
+
 			if (!String.IsNullOrEmpty(schema.Format))
 			{
-				return schema.Format switch
-				{
-					"uri" => "Uri",
-					"uuid" => "Guid",
-					"int32" => "int",
-					"int64" => "long",
-					"float" => "float",
-					"double" => "double",
-					"byte" => "byte",
-					"boolean" => "bool",
-					"binary" => "byte[]",
-					"date" => "DateTime",
-					"date-time" => "DateTime",
-					"password" => "string",
-					_ => schema.Format,
-				} + (schema.Nullable ? "?" : "");
+				type = schema.Format;
 			}
-
-			return type;
 		}
 		else if (schema.Reference is not null)
 		{
 			type = schema.Reference.Id;
 		}
 
-		return Builder.ToTypeName(type + (schema.Nullable ? "?" : ""));
+		return type.ToLower() switch
+		{
+			"uri" => "Uri",
+			"uuid" => "Guid",
+			"int32" => "int",
+			"int64" or "long" => "long",
+			"float" => "float",
+			"double" => "double",
+			"byte" => "byte",
+			"boolean" or "bool" => "bool",
+			"binary" => "byte[]",
+			"date" => "DateTime",
+			"date-time" => "DateTime",
+			"password" => "string",
+			_ => Builder.ToTypeName(type),
+		} + (schema.Nullable ? "?" : "");
 	}
 
 	private static IBuilder? ParseParametersCheck(OpenApiParameter parameter)
