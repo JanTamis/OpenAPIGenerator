@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace OpenAPIGenerator.Builders;
 
@@ -14,7 +15,17 @@ public class IfBuilder(string condition, IEnumerable<IBuilder> content) : IBuild
 		builder.Append(Condition);
 		builder.AppendLine(")");
 
-		Builder.Block(Content)
+		if (Content.SingleOrDefault() is LineBuilder line)
+		{
+			using (builder.Indent())
+			{
+				line.Build(builder);
+			}
+		}
+		else
+		{
+			Builder.Block(Content)
 			.Build(builder);
+		}		
 	}
 }

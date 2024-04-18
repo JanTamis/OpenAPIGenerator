@@ -1,7 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
 using System.Linq;
+using System.Reflection.PortableExecutable;
+using System.Text;
+using Markdig;
+using Markdig.Helpers;
+using Markdig.Syntax;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Expressions;
 using Microsoft.OpenApi.Models;
@@ -52,6 +58,7 @@ public static class OpenApiParser
 			Usings =
 			[
 				"System",
+				"System.Text.RegularExpressions",
 				"System.ComponentModel.DataAnnotations",
 				"System.Text.Json.Serialization",
 				"System.Runtime.Serialization",
@@ -66,13 +73,13 @@ public static class OpenApiParser
 				"System.Collections.Generic",
 			],
 			Namespace = rootNamespace,
-			Summary = document.Info.Description,
+			Summary = ParseComment(document.Info.Description),
 			Properties = [Builder.Property("HttpClient", "Client", modifier: PropertyModifier.Get, accessModifier: AccessModifier.Private)],
 			Constructors =
 			[
 				new ConstructorBuilder
 				{
-					Parameters = defaultHeaders.Select(s => new ParameterBuilder("string", s.Id) { Documentation = s.Description }),
+					Parameters = defaultHeaders.Select(s => new ParameterBuilder("string", s.Id) { Documentation = ParseComment(s.Description) }),
 					Content =
 					[
 						Builder.Line("Client = new HttpClient()"),
@@ -85,6 +92,15 @@ public static class OpenApiParser
 
 		type.Methods = type.Methods.Append(Builder.Method("ParseResponse<T>", "virtual Task<T?>", false, AccessModifier.Public,
 			[Builder.Parameter("HttpResponseMessage", "response"), Builder.Parameter("CancellationToken", "token")], [Builder.Line("return response.Content.ReadFromJsonAsync<T>(token);")]));
+
+		type.Methods = type.Methods
+			.Concat(document.Paths.Values
+				.SelectMany(s => s.Operations)
+				.Select(s => s.Value.RequestBody)
+				.SelectMany(s => s.Content.Values.Select(x => x.Schema))
+				.Distinct()
+				.Select(GetValidation)
+				.Where(w => w.Content.Any()));
 
 		return type;
 	}
@@ -105,7 +121,7 @@ public static class OpenApiParser
 		{
 			Parameters = operation.Parameters
 				.OrderByDescending(o => o.Required)
-				.Select(s => Builder.Parameter(GetTypeName(s.Schema ?? s.Content.FirstOrDefault().Value.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: s.Description)),
+				.Select(s => Builder.Parameter(GetTypeName(s.Schema ?? s.Content.FirstOrDefault().Value.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: ParseComment(s.Description))),
 			Summary = operation.Description,
 			IsAsync = true,
 			ReturnType = operation.Responses
@@ -144,11 +160,11 @@ public static class OpenApiParser
 
 		if (operation.Parameters.Any(w => w.In is ParameterLocation.Query or ParameterLocation.Path))
 		{
-			Builder.Append(method, Builder.Line($"var request = new HttpRequestMessage(HttpMethod.{type}, new Uri(url.ToStringAndClear()));"));
+			Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, new Uri(url.ToStringAndClear()));"));
 		}
 		else
 		{
-			Builder.Append(method, Builder.Line($"var request = new HttpRequestMessage(HttpMethod.{type}, url);"));
+			Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, url);"));
 		}
 		
 		Builder.Append(method, ParseHeaders(operation.Parameters.Where(w => w.In == ParameterLocation.Header).ToList()));
@@ -491,5 +507,138 @@ public static class OpenApiParser
 		}
 
 		return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName});");
+	}
+
+	private static string? ParseComment(string comment)
+	{
+		if (comment is null)
+		{
+			return null;
+		}
+
+		var document = Markdown.Parse(comment);
+		var builder = new IndentedStringBuilder();
+
+		foreach (var item in document)
+		{
+			if (item is ParagraphBlock paragraph)
+			{
+				builder.AppendLines(GetText(paragraph));
+			}
+			else if (item is ListBlock list)
+			{
+				builder.AppendLine("<list type=\"bullet\">");
+
+				using (builder.Indent())
+				{
+					foreach (var listItem in list)
+					{
+						builder.AppendLine("<item>");
+
+						using (builder.Indent())
+						{
+							builder.AppendLines($"<description>{GetText(listItem).TrimStart(list.BulletType).Trim()}</description>");
+						}
+
+						builder.AppendLine("</item>");
+					}
+				}
+
+				builder.AppendLine("</list>");
+			}
+			else if (item is HeadingBlock header)
+			{
+				builder.AppendLines($"<strong>{GetText(header).TrimStart(header.HeaderChar).Trim()}</strong>");
+			}
+			else if (item is HtmlBlock html)
+			{
+				builder.AppendLines(GetText(html));
+			}
+			else if (item is FencedCodeBlock code)
+			{
+				if (code.Lines.Count > 1)
+				{
+					builder.AppendLine("<code>");
+
+					using (builder.Indent())
+					{
+						foreach (var line in code.Lines.Lines)
+						{
+							builder.AppendLine(line.Slice.Text ?? String.Empty);
+						}
+					}
+
+					builder.AppendLine("</code>");
+				}
+				else
+				{
+					builder.AppendLine($"<c>{code.Lines.Lines[0].Slice.Text}</c>");
+				}
+			}
+			else
+			{
+				builder.AppendLines(GetText(item));
+			}
+		}
+
+		return comment; //builder.ToString();
+
+		string GetText(Markdig.Syntax.Block block)
+		{
+			return comment.Substring(block.Span.Start, block.Span.Length).Replace("<br>", "\n");
+		}
+	}
+
+	private static MethodBuilder GetValidation(OpenApiSchema schema)
+	{
+		var typeName = Builder.ToTypeName(schema.Type);
+
+		var properties = schema.Properties;
+
+		var method = Builder.Method($"Validate{typeName}", "void", false, AccessModifier.Private, [Builder.Parameter(typeName, "item")], []);
+		var isFirst = true;
+
+		foreach (var item in properties)
+		{
+			var parameterName = Builder.ToTypeName(item.Key);
+
+			if (schema.Required.Contains(item.Key))
+			{
+				AppendWhiteLine(method, ref isFirst);
+
+				Builder.Append(method, Builder.If($"item.{parameterName} is null",
+					[Builder.Line($$"""throw new ValidationException($"{nameof(item.{{parameterName}})} is required");""")]));
+			}
+
+			if (item.Value.MinLength.HasValue && item.Value.MaxLength.HasValue)
+			{
+				AppendWhiteLine(method, ref isFirst);
+
+				Builder.Append(method, Builder.If($"item.{parameterName}.Length is > {item.Value.MaxLength} or < {item.Value.MinLength}",
+					[Builder.Line($$"""throw new ValidationException($"{nameof(item.{{parameterName}})} was out of range");""")]));
+			}
+
+			if (!String.IsNullOrWhiteSpace(item.Value.Pattern))
+			{
+				AppendWhiteLine(method, ref isFirst);
+
+				Builder.Append(method, Builder.If($"!Regex.IsMatch(item.{parameterName}, @\"{item.Value.Pattern}\")",
+					[Builder.Line($$"""throw new ValidationException($"{nameof(item.{{parameterName}})} did not match the pattern");""")]));
+			}
+		}
+
+		return method;
+
+		void AppendWhiteLine(MethodBuilder builder, ref bool isFirst)
+		{
+			if (isFirst)
+			{
+				isFirst = false;
+			}
+			else
+			{
+				Builder.Append(builder, Builder.WhiteLine());
+			}
+		}
 	}
 }
