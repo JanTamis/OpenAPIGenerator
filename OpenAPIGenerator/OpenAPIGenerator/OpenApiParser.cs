@@ -23,11 +23,11 @@ public static class OpenApiParser
 			{Builder.ToString(CreateClient(document, rootNamespace))}
 
 			#region Schema's
-			
+
 			{String.Join("\n\n", document.Components.Schemas
 				.Where(w => w.Value.Type is "object" or null)
 				.Select(s => ToType(s.Value, s.Key)))}
-			
+
 			#endregion
 			""";
 	}
@@ -101,7 +101,7 @@ public static class OpenApiParser
 				.Distinct()
 				.Select(GetValidation)
 				.Where(w => w.Content.Any()));
-		
+
 		// type.Methods = type.Methods
 		// 	.Concat(document.Components.Schemas
 		// 		.Select(s => GetValidation(s.Value))
@@ -127,7 +127,7 @@ public static class OpenApiParser
 			Parameters = operation.Parameters
 				.OrderByDescending(o => o.Required)
 				.Select(s => Builder.Parameter(GetTypeName(s.Schema ?? s.Content.FirstOrDefault().Value.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: ParseComment(s.Description))),
-			Summary = operation.Description,
+			Summary = ParseComment(operation.Description),
 			IsAsync = true,
 			ReturnType = operation.Responses
 				.Where(a => Int32.TryParse(a.Key, out var code) && code is >= 200 and <= 299)
@@ -157,8 +157,8 @@ public static class OpenApiParser
 		}
 
 		method.Content = parameterCheck.Concat(method.Content);
-		
-		if (operation.Parameters.Any(a => !a.Required && a.In is ParameterLocation.Query))//  || operation.Parameters.Any(a => a.In is ParameterLocation.Path))
+
+		if (operation.Parameters.Any(a => !a.Required && a.In is ParameterLocation.Query)) //  || operation.Parameters.Any(a => a.In is ParameterLocation.Path))
 		{
 			Builder.Append(method, Builder.WhiteLine());
 		}
@@ -171,23 +171,23 @@ public static class OpenApiParser
 		{
 			Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, url);"));
 		}
-		
+
 		Builder.Append(method, ParseHeaders(operation.Parameters.Where(w => w.In == ParameterLocation.Header).ToList()));
-		
+
 		//ParseResponse(operation.Responses, method, false);
-		
+
 		var hasReturnType = operation.Responses.Any(a => Int32.TryParse(a.Key, out var code) && code is >= 200 and <= 299 && a.Value.Content.Values.FirstOrDefault()?.Schema is not null);
 
 		// if (hasHeaders)
 		// {
-			Builder.Append(method, Builder.WhiteLine());
+		Builder.Append(method, Builder.WhiteLine());
 		// }
-		
+
 		Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, token).ConfigureAwait(false);"));
 		Builder.Append(method, Builder.WhiteLine());
 		Builder.Append(method, ParseResponse(operation.Responses, hasReturnType));
-		
-		
+
+
 		return method;
 	}
 
@@ -196,7 +196,7 @@ public static class OpenApiParser
 		var hasQueryHoles = false;
 		var hasHoles = false;
 		var result = path;
-		
+
 		var optionalParameters = parameters.Where(w => !w.Required && w.In == ParameterLocation.Query).ToList();
 
 		foreach (var parameter in parameters.Where(w => w.In == ParameterLocation.Path))
@@ -244,7 +244,7 @@ public static class OpenApiParser
 		{
 			yield return Builder.WhiteLine();
 		}
-		
+
 		for (var i = 0; i < optionalParameters.Count; i++)
 		{
 			var parameter = optionalParameters[i];
@@ -256,7 +256,7 @@ public static class OpenApiParser
 	private static IEnumerable<IBuilder> ParseHeaders(IList<OpenApiParameter> headers)
 	{
 		var hasRequired = headers.Any(w => w.Required);
-		
+
 		var result = headers
 			.OrderByDescending(o => o.Required)
 			.SelectMany<OpenApiParameter, IBuilder>(s =>
@@ -278,7 +278,7 @@ public static class OpenApiParser
 					"password"  => $"{parameterName}.ToString()",
 					_           => parameterName,
 				};
-				
+
 				if (s.Required)
 				{
 					return [Builder.Line($"request.Headers.Add(\"{s.Name}\", {headerText});")];
@@ -307,7 +307,7 @@ public static class OpenApiParser
 		var length = responses.Max(m =>
 		{
 			var code = Int32.Parse(m.Key);
-			var result = ((System.Net.HttpStatusCode)code).ToString();
+			var result = ((System.Net.HttpStatusCode) code).ToString();
 
 			return result.Length;
 		});
@@ -325,7 +325,7 @@ public static class OpenApiParser
 			.Select(s =>
 			{
 				var code = Int32.Parse(s.Key);
-				var result = ((System.Net.HttpStatusCode)code).ToString();
+				var result = ((System.Net.HttpStatusCode) code).ToString();
 				var type = Builder.ToTypeName(GetTypeName(s.Value.Content.Values.FirstOrDefault()?.Schema));
 				var padding = new String(' ', length - result.Length);
 
@@ -339,7 +339,6 @@ public static class OpenApiParser
 					}
 
 					return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException(\"{caseText}\", response),");
-
 				}
 
 				if (code is >= 200 and <= 299)
@@ -355,7 +354,6 @@ public static class OpenApiParser
 				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token).ConfigureAwait(false)),");
 			})
 			.Append(Builder.Line($"_{new String(' ', length + "HttpStatusCode".Length)} => {(hasReturnType ? "throw " : String.Empty)}new InvalidOperationException(\"Unknown status code has been returned.\"),")), ";");
-
 	}
 
 	private static string ToType(OpenApiSchema schema, string typeName)
@@ -379,11 +377,11 @@ public static class OpenApiParser
 
 		var builder = new TypeBuilder(typeName)
 		{
-			Summary = schema.Description,
+			Summary = ParseComment(schema.Description),
 			Properties = schema.Properties
 				.Select(s =>
 				{
-					var isRequired  = schema.Required.Contains(s.Key);
+					var isRequired = schema.Required.Contains(s.Key);
 					var type = GetTypeName(s.Value);
 					//var type = s.Value.Type ?? Builder.ToTypeName(s.Value.Reference.Id);
 
@@ -414,7 +412,7 @@ public static class OpenApiParser
 
 					return Builder.Property(type, s.Key) with
 					{
-						Summary = s.Value.Description,
+						Summary = ParseComment(s.Value.Description),
 						Attributes = attributes,
 					};
 				}),
@@ -429,7 +427,7 @@ public static class OpenApiParser
 		{
 			return String.Empty;
 		}
-		
+
 		var type = schema.Type;
 
 		if (type is "integer")
@@ -460,19 +458,19 @@ public static class OpenApiParser
 
 		return type.ToLower() switch
 		{
-			"uri" => "Uri",
-			"uuid" => "Guid",
-			"int32" => "int",
-			"int64" or "long" => "long",
-			"float" => "float",
-			"double" => "double",
-			"byte" => "byte",
+			"uri"               => "Uri",
+			"uuid"              => "Guid",
+			"int32"             => "int",
+			"int64" or "long"   => "long",
+			"float"             => "float",
+			"double"            => "double",
+			"byte"              => "byte",
 			"boolean" or "bool" => "bool",
-			"binary" => "byte[]",
-			"date" => "DateTime",
-			"date-time" => "DateTime",
-			"password" => "string",
-			_ => Builder.ToTypeName(type),
+			"binary"            => "byte[]",
+			"date"              => "DateTime",
+			"date-time"         => "DateTime",
+			"password"          => "string",
+			_                   => Builder.ToTypeName(type),
 		} + (schema.Nullable ? "?" : "");
 	}
 
@@ -480,12 +478,12 @@ public static class OpenApiParser
 	{
 		var schema = parameter.Schema;
 		var parameterName = Builder.ToParameterName(parameter.Name);
-		
+
 		if (schema is null)
 		{
 			return null;
 		}
-		
+
 		if (schema.Items is null && schema.Type is not null && schema.Type != "object")
 		{
 			if (schema is { Type: "string", Format: "byte" })
@@ -514,7 +512,7 @@ public static class OpenApiParser
 		return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName});");
 	}
 
-	private static string? ParseComment(string comment)
+	private static string? ParseComment(string? comment)
 	{
 		if (comment is null)
 		{
@@ -529,7 +527,14 @@ public static class OpenApiParser
 			switch (item)
 			{
 				case ParagraphBlock paragraph:
+					// builder.AppendLine("<para>");
+
+					// using (builder.Indent())
+					// {
 					builder.AppendLines(GetText(paragraph));
+					// }
+
+					// builder.AppendLine("</para>");
 					break;
 
 				case ListBlock list:
@@ -544,7 +549,7 @@ public static class OpenApiParser
 
 							using (builder.Indent())
 							{
-								builder.AppendLines($"<description>{GetText(listItem).TrimStart(list.BulletType).Trim()}</description>");
+								builder.AppendLines($"<description>{GetTextRaw(listItem).Replace("<br>", String.Empty).TrimStart(list.BulletType).Trim()}</description>");
 							}
 
 							builder.AppendLine("</item>");
@@ -556,30 +561,27 @@ public static class OpenApiParser
 				}
 
 				case HeadingBlock header:
-					builder.AppendLines($"<strong>{GetText(header).TrimStart(header.HeaderChar).Trim()}</strong>");
+					builder.AppendLines($"<b>{GetText(header).TrimStart(header.HeaderChar).Trim()}</b><br/>");
 					break;
 				case HtmlBlock html:
-					builder.AppendLines(GetText(html));
-					break;
-
-				case FencedCodeBlock { Lines.Count: > 1 } code:
-				{
 					builder.AppendLine("<code>");
-
-					using (builder.Indent())
-					{
-						foreach (var line in code.Lines.Lines)
-						{
-							builder.AppendLine(line.Slice.Text ?? String.Empty);
-						}
-					}
-
+					builder.AppendLines(GetTextRaw(html).Replace("<br>", "<br/>"));
 					builder.AppendLine("</code>");
 					break;
-				}
-
 				case FencedCodeBlock code:
-					builder.AppendLine($"<c>{code.Lines.Lines[0].Slice.Text}</c>");
+					var text = GetTextRaw(code).Trim(code.FencedChar).Trim();
+
+					if (text.Contains('\n'))
+					{
+						builder.AppendLine("<code>");
+						builder.AppendLines(text);
+						builder.AppendLine("</code>");
+					}
+					else
+					{
+						builder.AppendLine($"<c>{text}</c><br/>");
+					}
+
 					break;
 				default:
 					builder.AppendLines(GetText(item));
@@ -587,17 +589,27 @@ public static class OpenApiParser
 			}
 		}
 
-		return comment; //builder.ToString();
+		return builder.ToString();
 
 		string GetText(Markdig.Syntax.Block block)
 		{
-			return comment.Substring(block.Span.Start, block.Span.Length).Replace("<br>", "\n");
+			return GetTextRaw(block).TrimEnd().Replace("\n", "<br/>\n").Replace("<br>", "<br/>\n");
+		}
+
+		string GetTextRaw(Markdig.Syntax.Block block)
+		{
+			return comment.Substring(block.Span.Start, block.Span.Length);
 		}
 	}
 
 	private static MethodBuilder GetValidation(OpenApiSchema schema)
 	{
 		var typeName = GetTypeName(schema);
+
+		if (typeName is "object")
+		{
+			return Builder.Method(String.Empty, []);
+		}
 
 		var properties = schema.Properties;
 
@@ -610,46 +622,36 @@ public static class OpenApiParser
 
 			if (schema.Required.Contains(item.Key))
 			{
-				AppendWhiteLine();
-
-				Builder.Append(method, Builder.If($"item.{parameterName} is null",
-					[Builder.Line($$"""throw new ValidationException($"{nameof(item.{{parameterName}})} is required");""")]));
+				AppendValidation($"item.{parameterName} is null",
+					$"{{nameof(item.{parameterName})}} is required");
 			}
 
 			if (item.Value.MinLength.HasValue && item.Value.MaxLength.HasValue)
 			{
-				AppendWhiteLine();
-
-				Builder.Append(method, Builder.If($$"""item.{{parameterName}} is { Length: < {{item.Value.MinLength}} or > {{item.Value.MaxLength}} }""",
-					[Builder.Line($$"""throw new ValidationException($"{nameof(item.{{parameterName}})} was out of range");""")]));
+				AppendValidation($"item.{parameterName} is {{ Length: < {item.Value.MinLength} or > {item.Value.MaxLength} }}",
+					$"{{nameof(item.{parameterName})}} was out of range");
 			}
 			else if (item.Value.MinLength.HasValue)
 			{
-				AppendWhiteLine();
-
-				Builder.Append(method, Builder.If($$"""item.{{parameterName}} is { Length: < {{item.Value.MinLength}} }""",
-					[Builder.Line($$"""throw new ValidationException($"the length of {nameof(item.{{parameterName}})} needs to be bigger or equal to {{item.Value.MinLength}}");""")]));
+				AppendValidation($"item.{parameterName} is {{ Length: < {item.Value.MinLength} }}",
+					$"the length of {{nameof(item.{parameterName})}} needs to be bigger or equal to {item.Value.MinLength}");
 			}
 			else if (item.Value.MaxLength.HasValue)
 			{
-				AppendWhiteLine();
-
-				Builder.Append(method, Builder.If($$"""item.{{parameterName}} is { Length: > {{item.Value.MaxLength}} }""",
-					[Builder.Line($$"""throw new ValidationException($"the length of {nameof(item.{{parameterName}})} needs to be smaller or equal to {{item.Value.MinLength}}");""")]));
+				AppendValidation($"item.{parameterName} is {{ Length: > {item.Value.MaxLength} }}",
+					$"the length of {{nameof(item.{parameterName})}} needs to be smaller or equal to {item.Value.MinLength}");
 			}
 
 			if (!String.IsNullOrWhiteSpace(item.Value.Pattern))
 			{
-				AppendWhiteLine();
-
-				Builder.Append(method, Builder.If($"!Regex.IsMatch(item.{parameterName}, @\"{item.Value.Pattern}\")",
-					[Builder.Line($$"""throw new ValidationException($"{nameof(item.{{parameterName}})} did not match the pattern");""")]));
+				AppendValidation($"!Regex.IsMatch(item.{parameterName} ?? String.Empty, @\"{item.Value.Pattern}\")",
+					$"{{nameof(item.{parameterName})}} did not match the pattern");
 			}
 		}
 
 		return method;
 
-		void AppendWhiteLine()
+		void AppendValidation(string condition, string message)
 		{
 			if (isFirst)
 			{
@@ -659,6 +661,9 @@ public static class OpenApiParser
 			{
 				Builder.Append(method, Builder.WhiteLine());
 			}
+
+			Builder.Append(method, Builder.If(condition,
+				[Builder.Line($"throw new ValidationException($\"{message}\");")]));
 		}
 	}
 }
