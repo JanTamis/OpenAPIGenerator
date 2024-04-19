@@ -620,21 +620,21 @@ public static class OpenApiParser
 			{
 				AppendWhiteLine();
 
-				Builder.Append(method, Builder.If($"item.{parameterName}.Length is < {item.Value.MinLength} or > {item.Value.MaxLength}",
+				Builder.Append(method, Builder.If($$"""item.{{parameterName}} is { Length: < {{item.Value.MinLength}} or > {{item.Value.MaxLength}} }""",
 					[Builder.Line($$"""throw new ValidationException($"{nameof(item.{{parameterName}})} was out of range");""")]));
 			}
 			else if (item.Value.MinLength.HasValue)
 			{
 				AppendWhiteLine();
 
-				Builder.Append(method, Builder.If($"item.{parameterName}.Length < {item.Value.MinLength}",
+				Builder.Append(method, Builder.If($$"""item.{{parameterName}} is { Length: < {{item.Value.MinLength}} }""",
 					[Builder.Line($$"""throw new ValidationException($"the length of {nameof(item.{{parameterName}})} needs to be bigger or equal to {{item.Value.MinLength}}");""")]));
 			}
 			else if (item.Value.MaxLength.HasValue)
 			{
 				AppendWhiteLine();
 
-				Builder.Append(method, Builder.If($"item.{parameterName}.Length > {item.Value.MinLength}",
+				Builder.Append(method, Builder.If($$"""item.{{parameterName}} is { Length: > {{item.Value.MaxLength}} }""",
 					[Builder.Line($$"""throw new ValidationException($"the length of {nameof(item.{{parameterName}})} needs to be smaller or equal to {{item.Value.MinLength}}");""")]));
 			}
 
