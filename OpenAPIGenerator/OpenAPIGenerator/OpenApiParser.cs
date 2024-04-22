@@ -1,15 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Data;
 using System.Linq;
-using System.Reflection.PortableExecutable;
-using System.Text;
 using Markdig;
-using Markdig.Helpers;
 using Markdig.Syntax;
 using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Expressions;
 using Microsoft.OpenApi.Models;
 using OpenAPIGenerator.Builders;
 
@@ -149,14 +143,16 @@ public static class OpenApiParser
 		var parameterCheck = operation.Parameters
 			.Where(w => w.Required)
 			.Select(ParseParametersCheck)
-			.Where(w => w != null);
+			.Where(w => w != null)
+			.ToList();
 
-		if (parameterCheck.Any())
+		if (parameterCheck.Count > 0)
 		{
-			parameterCheck = parameterCheck.Append(Builder.WhiteLine());
+			parameterCheck.Add(Builder.WhiteLine());
 		}
 
-		method.Content = parameterCheck.Concat(method.Content);
+		parameterCheck.AddRange(method.Content);
+		method.Content = parameterCheck;
 
 		if (operation.Parameters.Any(a => !a.Required && a.In is ParameterLocation.Query)) //  || operation.Parameters.Any(a => a.In is ParameterLocation.Path))
 		{
@@ -564,9 +560,9 @@ public static class OpenApiParser
 					builder.AppendLines($"<b>{GetText(header).TrimStart(header.HeaderChar).Trim()}</b><br/>");
 					break;
 				case HtmlBlock html:
-					builder.AppendLine("<code>");
-					builder.AppendLines(GetTextRaw(html).Replace("<br>", "<br/>"));
-					builder.AppendLine("</code>");
+					// builder.AppendLine("<code>");
+					// builder.AppendLines(GetTextRaw(html).Replace("<br>", "<br/>"));
+					// builder.AppendLine("</code>");
 					break;
 				case FencedCodeBlock code:
 					var text = GetTextRaw(code).Trim(code.FencedChar).Trim();
