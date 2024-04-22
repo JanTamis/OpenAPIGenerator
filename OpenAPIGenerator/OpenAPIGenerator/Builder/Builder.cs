@@ -109,9 +109,14 @@ public static class Builder
 			return "int";
 		}
 
-		if (String.Equals(name, "string", StringComparison.InvariantCultureIgnoreCase))
+		if (name.StartsWith("string", StringComparison.InvariantCultureIgnoreCase))
 		{
 			return "string";
+		}
+
+		if (name.StartsWith("byte", StringComparison.InvariantCultureIgnoreCase))
+		{
+			return name;
 		}
 
 		if (String.Equals(name, "object", StringComparison.InvariantCultureIgnoreCase))

@@ -151,6 +151,26 @@ public static class OpenApiParser
 			parameterCheck.Add(Builder.WhiteLine());
 		}
 
+		if (operation.RequestBody?.Content?.Count > 0)
+		{
+			var mediaType = operation.RequestBody.Content.First();
+			var typeName = GetTypeName(mediaType.Value.Schema);
+
+			if (GetValidation(mediaType.Value.Schema).Content.Any())
+			{
+				if (operation.RequestBody.Required)
+				{
+					parameterCheck.Add(Builder.Line($"Validate{typeName}(body);"));
+				}
+				else
+				{
+					parameterCheck.Add(Builder.If("body is not null", Builder.Line($"Validate{typeName}(body);")));
+				}
+
+				parameterCheck.Add(Builder.WhiteLine());
+			}
+		}
+
 		parameterCheck.AddRange(method.Content);
 		method.Content = parameterCheck;
 
@@ -179,7 +199,7 @@ public static class OpenApiParser
 		Builder.Append(method, Builder.WhiteLine());
 		// }
 
-		Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, token).ConfigureAwait(false);"));
+		Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);"));
 		Builder.Append(method, Builder.WhiteLine());
 		Builder.Append(method, ParseResponse(operation.Responses, hasReturnType));
 
@@ -385,6 +405,10 @@ public static class OpenApiParser
 					{
 						type += "?";
 					}
+					else
+					{
+						type = $"required {type}";
+					}
 
 					var attributes = new List<AttributeBuilder>()
 					{
@@ -435,13 +459,12 @@ public static class OpenApiParser
 		{
 			type = $"{GetTypeName(schema.Items)}[]";
 		}
+		else if (schema is { Type: "string", Format: "byte" })
+		{
+			return "byte[]" + (schema.Nullable ? "?" : "");
+		}
 		else if (schema.Type is not null && schema.Type != "object")
 		{
-			if (schema is { Type: "string", Format: "byte" })
-			{
-				return "byte[]" + (schema.Nullable ? "?" : "");
-			}
-
 			if (!String.IsNullOrEmpty(schema.Format))
 			{
 				type = schema.Format;
