@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata;
 using Markdig;
 using Markdig.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using OpenAPIGenerator.Builders;
@@ -111,16 +113,13 @@ public static class OpenApiParser
 
 	private static IEnumerable<MethodBuilder> ParsePath(string path, OpenApiPathItem pathItem)
 	{
-		return pathItem.Operations.Select(s => ParseOperation(path, s.Key, s.Value, pathItem.Parameters.Any(a => a.In == ParameterLocation.Header)));
+		return pathItem.Operations.Select(s => ParseOperation(path, s.Key, s.Value));
 	}
 
-	private static MethodBuilder ParseOperation(string path, OperationType type, OpenApiOperation operation, bool hasHeaders)
+	private static MethodBuilder ParseOperation(string path, OperationType type, OpenApiOperation operation)
 	{
 		var method = Builder.Method($"{Builder.ToTypeName(operation.OperationId)}Async") with
 		{
-			Parameters = operation.Parameters
-				.OrderByDescending(o => o.Required)
-				.Select(s => Builder.Parameter(GetTypeName(s.Schema ?? s.Content.FirstOrDefault().Value.Schema) + (s.Required ? String.Empty : "?"), s.Name, s.Required ? null : "null", documentation: ParseComment(s.Description))),
 			Summary = ParseComment(operation.Description),
 			IsAsync = true,
 			ReturnType = operation.Responses
@@ -130,15 +129,36 @@ public static class OpenApiParser
 			Content = ParseRequestPath(path, operation.Parameters),
 		};
 
-		if (operation.RequestBody?.Content?.Count > 0)
-		{
-			var mediaType = operation.RequestBody.Content.First();
-			var typeName = GetTypeName(mediaType.Value.Schema);
+		var parameters = new List<ParameterBuilder>();
+		var wasAdded = operation.RequestBody is null;
 
-			method.Parameters = method.Parameters.Append(Builder.Parameter($"{typeName}?", "body", "null"));
+		foreach (var parameterGroup in operation.Parameters.GroupBy(g => g.Required))
+		{
+			foreach (var parameter in parameterGroup)
+			{
+				parameters.Add(Builder.Parameter(GetTypeName(parameter.Schema ?? parameter.Content.FirstOrDefault().Value.Schema) + (parameter.Required ? String.Empty : "?"), parameter.Name, parameter.Required ? null : "null", documentation: ParseComment(parameter.Description)));
+			}
+			
+			if (!wasAdded && operation.RequestBody!.Required == parameterGroup.Key && TryGetBody(operation.RequestBody, out var mediaType))
+			{
+				var typeName = GetTypeName(mediaType.Value.Schema);
+
+				if (operation.RequestBody.Required)
+				{
+					parameters.Add(Builder.Parameter(typeName, "body", null, "The body of the request."));					
+				}
+				else
+				{
+					parameters.Add(Builder.Parameter($"{typeName}?", "body", "null", "The body of the request. (optional)"));
+				}
+					
+				wasAdded = true;
+			}
 		}
 
-		method.Parameters = method.Parameters.Append(Builder.Parameter("CancellationToken", "token", "default", "The cancellation token to cancel the request (optional)."));
+		parameters.Add(Builder.Parameter("CancellationToken", "token", "default", "The cancellation token to cancel the request (optional)."));
+		
+		method.Parameters = parameters;
 
 		var parameterCheck = operation.Parameters
 			.Where(w => w.Required)
@@ -146,17 +166,22 @@ public static class OpenApiParser
 			.Where(w => w != null)
 			.ToList();
 
+		if (operation.RequestBody?.Required == true)
+		{
+			parameterCheck.Append(Builder.WhiteLine());
+			parameterCheck.Add(Builder.Line("ArgumentNullException.ThrowIfNull(body);"));
+		}
+
 		if (parameterCheck.Count > 0)
 		{
 			parameterCheck.Add(Builder.WhiteLine());
 		}
 
-		if (operation.RequestBody?.Content?.Count > 0)
+		if (TryGetBody(operation.RequestBody, out var mediaTypes))
 		{
-			var mediaType = operation.RequestBody.Content.First();
-			var typeName = GetTypeName(mediaType.Value.Schema);
+			var typeName = GetTypeName(mediaTypes.Value.Schema);
 
-			if (GetValidation(mediaType.Value.Schema).Content.Any())
+			if (GetValidation(mediaTypes.Value.Schema).Content.Any())
 			{
 				if (operation.RequestBody.Required)
 				{
@@ -189,6 +214,21 @@ public static class OpenApiParser
 		}
 
 		Builder.Append(method, ParseHeaders(operation.Parameters.Where(w => w.In == ParameterLocation.Header).ToList()));
+
+		if (TryGetBody(operation.RequestBody, out _))
+		{
+			Builder.Append(method, Builder.WhiteLine());
+
+			if (operation.RequestBody?.Required == true)
+			{
+				Builder.Append(method, Builder.Line($"request.Content = JsonContent.Create(body, MediaTypeHeaderValue.Parse(\"{mediaTypes.Key}\"));"));
+			}
+			else
+			{
+				Builder.Append(method, Builder.If("body is not null",
+					[Builder.Line($"request.Content = JsonContent.Create(body, MediaTypeHeaderValue.Parse(\"{mediaTypes}\"));")]));
+			}
+		}
 
 		//ParseResponse(operation.Responses, method, false);
 
@@ -359,6 +399,11 @@ public static class OpenApiParser
 
 				if (code is >= 200 and <= 299)
 				{
+					if (type is "byte[]")
+					{
+						return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadAsByteArrayAsync(token),");	
+					}
+					
 					return Builder.Line($"HttpStatusCode.{result}{padding} => await ParseResponse<{type}>(response, token),");
 				}
 
@@ -684,5 +729,12 @@ public static class OpenApiParser
 			Builder.Append(method, Builder.If(condition,
 				[Builder.Line($"throw new ValidationException($\"{message}\");")]));
 		}
+	}
+
+	private static bool TryGetBody(OpenApiRequestBody? requestBody, out KeyValuePair<string, OpenApiMediaType> mediaType)
+	{
+		mediaType = requestBody?.Content?.FirstOrDefault(f => f.Key.Contains("json")) ?? default;
+		
+		return !String.IsNullOrWhiteSpace(mediaType.Key);
 	}
 }
