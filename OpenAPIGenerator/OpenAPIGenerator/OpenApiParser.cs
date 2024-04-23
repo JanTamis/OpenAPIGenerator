@@ -131,6 +131,7 @@ public static class OpenApiParser
 
 		var parameters = new List<ParameterBuilder>();
 		var wasAdded = operation.RequestBody is null;
+		var hasBody = TryGetBody(operation.RequestBody, out var mediaType);
 
 		foreach (var parameterGroup in operation.Parameters.GroupBy(g => g.Required))
 		{
@@ -138,8 +139,8 @@ public static class OpenApiParser
 			{
 				parameters.Add(Builder.Parameter(GetTypeName(parameter.Schema ?? parameter.Content.FirstOrDefault().Value.Schema) + (parameter.Required ? String.Empty : "?"), parameter.Name, parameter.Required ? null : "null", documentation: ParseComment(parameter.Description)));
 			}
-			
-			if (!wasAdded && operation.RequestBody!.Required == parameterGroup.Key && TryGetBody(operation.RequestBody, out var mediaType))
+
+			if (!wasAdded && operation.RequestBody!.Required == parameterGroup.Key && hasBody)
 			{
 				var typeName = GetTypeName(mediaType.Value.Schema);
 
@@ -153,6 +154,20 @@ public static class OpenApiParser
 				}
 					
 				wasAdded = true;
+			}
+		}
+
+		if (!wasAdded && hasBody)
+		{
+			var typeName = GetTypeName(mediaType.Value.Schema);
+
+			if (operation.RequestBody.Required)
+			{
+				parameters.Insert(0, Builder.Parameter(typeName, "body", null, "The body of the request."));
+			}
+			else
+			{
+				parameters.Add(Builder.Parameter($"{typeName}?", "body", "null", "The body of the request. (optional)"));
 			}
 		}
 
