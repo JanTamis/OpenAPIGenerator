@@ -1,5 +1,3 @@
-using System;
-
 namespace OpenAPIGenerator.Builders;
 
 public class WhiteLineBuilder : IBuilder

@@ -37,7 +37,7 @@ public record MethodBuilder : IBuilder, IContent
 			if (!String.IsNullOrWhiteSpace(parameter.Documentation))
 			{
 				builder.Append($"/// <param name=\"{parameter.Name}\">");
-				builder.AppendLines(parameter.Documentation, x => $"/// {x}", false, skipFinalNewline: true);
+				builder.AppendLines(parameter.Documentation!, x => $"/// {x}", false, skipFinalNewline: true);
 				builder.AppendLine("</param>");
 			}
 		}

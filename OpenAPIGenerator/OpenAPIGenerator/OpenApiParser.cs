@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.Metadata;
 using Markdig;
 using Markdig.Syntax;
-using Microsoft.CodeAnalysis.Operations;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using OpenAPIGenerator.Builders;
@@ -161,7 +159,7 @@ public static class OpenApiParser
 		{
 			var typeName = GetTypeName(mediaType.Value.Schema);
 
-			if (operation.RequestBody.Required)
+			if (operation.RequestBody!.Required)
 			{
 				parameters.Insert(0, Builder.Parameter(typeName, "body", null, "The body of the request."));
 			}
@@ -179,11 +177,12 @@ public static class OpenApiParser
 			.Where(w => w.Required)
 			.Select(ParseParametersCheck)
 			.Where(w => w != null)
+			.OfType<IBuilder>()
 			.ToList();
 
 		if (operation.RequestBody?.Required == true)
 		{
-			parameterCheck.Append(Builder.WhiteLine());
+			parameterCheck.Add(Builder.WhiteLine());
 			parameterCheck.Add(Builder.Line("ArgumentNullException.ThrowIfNull(body);"));
 		}
 
@@ -198,7 +197,7 @@ public static class OpenApiParser
 
 			if (GetValidation(mediaTypes.Value.Schema).Content.Any())
 			{
-				if (operation.RequestBody.Required)
+				if (operation.RequestBody!.Required)
 				{
 					parameterCheck.Add(Builder.Line($"Validate{typeName}(body);"));
 				}
@@ -718,7 +717,7 @@ public static class OpenApiParser
 			else if (item.Value.MaxLength.HasValue)
 			{
 				AppendValidation($"item.{parameterName} is {{ Length: > {item.Value.MaxLength} }}",
-					$"the length of {{nameof(item.{parameterName})}} needs to be smaller or equal to {item.Value.MinLength}");
+					$"the length of {{nameof(item.{parameterName})}} needs to be smaller or equal to {item.Value.MaxLength}");
 			}
 
 			if (!String.IsNullOrWhiteSpace(item.Value.Pattern))
