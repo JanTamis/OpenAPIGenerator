@@ -134,7 +134,7 @@ public static class Builder
 			}
 		}
 
-		return Regex.Replace(string.Join("", parts), @"[^a-zA-Z0-9_]", String.Empty);
+		return Regex.Replace(String.Join("", parts), @"[^a-zA-Z0-9_\<\>\[\]]", String.Empty);
 	}
 
 	public static string ToParameterName(string name)

@@ -6,7 +6,7 @@ namespace OpenAPIGenerator.Builders;
 public class AttributeBuilder(string name, IEnumerable<string> parameters) : IBuilder
 {
 	public string Name { get; } = name;
-	public IEnumerable<string> Parameters { get; } = parameters;
+	public IEnumerable<string> Parameters { get; set; } = parameters;
 
 	public void Build(IndentedStringBuilder builder)
 	{

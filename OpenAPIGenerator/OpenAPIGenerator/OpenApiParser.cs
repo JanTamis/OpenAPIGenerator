@@ -135,7 +135,7 @@ public static class OpenApiParser
 		{
 			foreach (var parameter in parameterGroup)
 			{
-				parameters.Add(Builder.Parameter(GetTypeName(parameter.Schema ?? parameter.Content.FirstOrDefault().Value.Schema) + (parameter.Required ? String.Empty : "?"), parameter.Name, parameter.Required ? null : "null", documentation: ParseComment(parameter.Description)));
+				parameters.Add(Builder.Parameter(GetTypeName(parameter.Schema ?? parameter.Content.FirstOrDefault().Value.Schema) + (parameter.Required ? String.Empty : "?"), parameter.Name, parameter.Required ? null : "null", documentation: ParseParameterComment(parameter)));
 			}
 
 			if (!wasAdded && operation.RequestBody!.Required == parameterGroup.Key && hasBody)
@@ -182,7 +182,6 @@ public static class OpenApiParser
 
 		if (operation.RequestBody?.Required == true)
 		{
-			parameterCheck.Add(Builder.WhiteLine());
 			parameterCheck.Add(Builder.Line("ArgumentNullException.ThrowIfNull(body);"));
 		}
 
@@ -458,7 +457,7 @@ public static class OpenApiParser
 				{
 					var isRequired = schema.Required.Contains(s.Key);
 					var type = GetTypeName(s.Value);
-					//var type = s.Value.Type ?? Builder.ToTypeName(s.Value.Reference.Id);
+					var isString = type == "string";
 
 					if (!isRequired)
 					{
@@ -474,20 +473,41 @@ public static class OpenApiParser
 						Builder.Attribute("JsonPropertyName", $"\"{s.Key}\""),
 					};
 
-					if (!String.IsNullOrWhiteSpace(s.Value.Pattern))
+					if (isString && !String.IsNullOrWhiteSpace(s.Value.Pattern))
 					{
 						attributes.Add(Builder.Attribute("RegularExpression", $"@\"{s.Value.Pattern}\""));
 					}
 
-					if (s.Value.MaxLength.HasValue)
+					if (isString && s.Value.MaxLength.HasValue || s.Value.MinLength.HasValue)
 					{
-						attributes.Add(Builder.Attribute("MaxLength", s.Value.MaxLength.Value.ToString()));
-					}
+						var attribute = Builder.Attribute("StringLength");
 
-					if (s.Value.MinLength.HasValue)
-					{
-						attributes.Add(Builder.Attribute("MinLength", s.Value.MinLength.Value.ToString()));
+						if (s.Value.MaxLength.HasValue)
+						{
+							attribute.Parameters = attribute.Parameters.Append(s.Value.MaxLength.Value.ToString());
+						}
+
+						if (s.Value.MinLength.HasValue && s.Value.MinLength.Value > 0)
+						{
+							attribute.Parameters = attribute.Parameters.Append($"MinimumLength = {s.Value.MinLength.Value}");
+						}
+
+						attributes.Add(attribute);
 					}
+					else
+					{
+						if (s.Value.MaxLength.HasValue)
+						{
+							attributes.Add(Builder.Attribute("MaxLength", s.Value.MaxLength.Value.ToString()));
+						}
+
+						if (s.Value.MinLength.HasValue)
+						{
+							attributes.Add(Builder.Attribute("MinLength", s.Value.MinLength.Value.ToString()));
+						}
+					}
+					
+					attributes.Add(Builder.Attribute("JsonIgnore", "Condition = JsonIgnoreCondition.WhenWritingDefault"));
 
 					return Builder.Property(type, s.Key) with
 					{
@@ -496,6 +516,8 @@ public static class OpenApiParser
 					};
 				}),
 		};
+
+		builder.Properties = builder.Properties.Concat([Builder.Property("IDictionary<string, object>", "AdditionalProperties", null, Builder.Attribute("JsonExtensionData"))]);
 
 		return Builder.ToString(builder);
 	}
@@ -516,7 +538,14 @@ public static class OpenApiParser
 
 		if (schema.Items is not null)
 		{
-			type = $"{GetTypeName(schema.Items)}[]";
+			if (schema.UniqueItems == true)
+			{
+				type = $"HashSet<{GetTypeName(schema.Items)}>";
+			}
+			else
+			{
+				type = $"{GetTypeName(schema.Items)}[]";
+			}
 		}
 		else if (schema is { Type: "string", Format: "byte" })
 		{
@@ -588,6 +617,18 @@ public static class OpenApiParser
 		}
 
 		return Builder.Line($"ArgumentNullException.ThrowIfNull({parameterName});");
+	}
+
+	private static string? ParseParameterComment(OpenApiParameter parameter)
+	{
+		var result = ParseComment(parameter.Description);
+
+		if (parameter.Example is OpenApiString example)
+		{
+			result += $"<br/> Example: {example.Value}";
+		}
+
+		return result;
 	}
 
 	private static string? ParseComment(string? comment)
@@ -691,12 +732,14 @@ public static class OpenApiParser
 
 		var properties = schema.Properties;
 
-		var method = Builder.Method($"Validate{typeName}", "void", false, AccessModifier.Private, [Builder.Parameter(typeName, "item")], []);
+		var method = Builder.Method($"Validate{typeName}", "static void", false, AccessModifier.Private, [Builder.Parameter(typeName, "item")], []);
 		var isFirst = true;
 
 		foreach (var item in properties)
 		{
 			var parameterName = Builder.ToTypeName(item.Key);
+			var type = GetTypeName(item.Value);
+			var isString = type == "string";
 
 			if (schema.Required.Contains(item.Key))
 			{
@@ -704,26 +747,34 @@ public static class OpenApiParser
 					$"{{nameof(item.{parameterName})}} is required");
 			}
 
-			if (item.Value.MinLength.HasValue && item.Value.MaxLength.HasValue)
+			if (item.Value.MinLength.HasValue && (!isString || item.Value.MinLength > 0) && item.Value.MaxLength.HasValue && (!isString || item.Value.MaxLength > 0))
 			{
 				AppendValidation($"item.{parameterName} is {{ Length: < {item.Value.MinLength} or > {item.Value.MaxLength} }}",
 					$"{{nameof(item.{parameterName})}} was out of range");
 			}
-			else if (item.Value.MinLength.HasValue)
+			else if (item.Value.MinLength.HasValue && (!isString || item.Value.MinLength > 0))
 			{
 				AppendValidation($"item.{parameterName} is {{ Length: < {item.Value.MinLength} }}",
 					$"the length of {{nameof(item.{parameterName})}} needs to be bigger or equal to {item.Value.MinLength}");
 			}
-			else if (item.Value.MaxLength.HasValue)
+			else if (item.Value.MaxLength.HasValue && (!isString || item.Value.MaxLength > 0))
 			{
 				AppendValidation($"item.{parameterName} is {{ Length: > {item.Value.MaxLength} }}",
 					$"the length of {{nameof(item.{parameterName})}} needs to be smaller or equal to {item.Value.MaxLength}");
 			}
 
-			if (!String.IsNullOrWhiteSpace(item.Value.Pattern))
+			if (isString && !String.IsNullOrWhiteSpace(item.Value.Pattern))
 			{
-				AppendValidation($"!Regex.IsMatch(item.{parameterName} ?? String.Empty, @\"{item.Value.Pattern}\")",
+				if (schema.Required.Contains(item.Key))
+				{
+					AppendValidation($"!Regex.IsMatch(item.{parameterName}, @\"{item.Value.Pattern}\")",
 					$"{{nameof(item.{parameterName})}} did not match the pattern");
+				}
+				else
+				{
+					AppendValidation($"item.{parameterName} is not null && !Regex.IsMatch(item.{parameterName}, @\"{item.Value.Pattern}\")",
+					$"{{nameof(item.{parameterName})}} did not match the pattern");
+				}
 			}
 		}
 
