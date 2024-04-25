@@ -1,13 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.CodeAnalysis;
+using Microsoft.OpenApi.Extensions;
+using OpenAPIGenerator.Enumerators;
 
 namespace OpenAPIGenerator.Builders;
 
 public class TypeBuilder : BaseTypeBuilder
 {
 	public TypeKind TypeKind { get; set; } = TypeKind.Class;
+
+	public TypeAttributes Modifiers { get; set; } = TypeAttributes.None;
 
 	public IEnumerable<PropertyBuilder> Properties { get; set; } = [];
 	public IEnumerable<ConstructorBuilder> Constructors { get; set; } = [];
@@ -32,7 +37,7 @@ public class TypeBuilder : BaseTypeBuilder
 		{
 			builder.AppendLine();
 		}
-		
+
 		if (!String.IsNullOrWhiteSpace(Namespace))
 		{
 			builder.AppendLine($"namespace {Namespace};");
@@ -55,12 +60,27 @@ public class TypeBuilder : BaseTypeBuilder
 		builder.Append(AccessModifier.ToString().ToLower());
 		builder.Append(' ');
 
+		if (Modifiers.HasFlag(TypeAttributes.Static))
+		{
+			builder.Append("static ");
+		}
+
+		if (Modifiers.HasFlag(TypeAttributes.Partial))
+		{
+			builder.Append("partial ");
+		}
+
+		if (Modifiers.HasFlag(TypeAttributes.Sealed))
+		{
+			builder.Append("sealed ");
+		}
+
 		builder.Append(TypeKind switch
 		{
-			TypeKind.Class     => "class",
+			TypeKind.Class => "class",
 			TypeKind.Structure => "struct",
 			TypeKind.Interface => "interface",
-			_                  => throw new ArgumentOutOfRangeException(nameof(TypeKind), TypeKind, "Invalid type kind"),
+			_ => throw new ArgumentOutOfRangeException(nameof(TypeKind), TypeKind, "Invalid type kind"),
 		});
 
 		builder.Append(' ');
@@ -90,11 +110,11 @@ public class TypeBuilder : BaseTypeBuilder
 			{
 				builder.AppendLine();
 			}
-			
+
 			for (var i = 0; i < constructors.Count; i++)
 			{
 				constructors[i].TypeName = TypeName;
-				
+
 				constructors[i].Build(builder);
 				builder.AppendLine();
 
