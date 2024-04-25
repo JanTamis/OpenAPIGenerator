@@ -72,6 +72,31 @@ public static class TypeHelper
 		} + (schema.Nullable ? "?" : "");
 	}
 
+	public static string GetTypeName(OpenApiParameter parameter)
+	{
+		var schema = parameter.Schema ?? parameter.Content.FirstOrDefault().Value.Schema;
+		
+		if (schema.Enum.Any())
+		{
+			return Builder.ToTypeName(parameter.Name);
+		}
+
+		return GetTypeName(schema);
+	}
+
+	public static string ToType(OpenApiParameter parameter)
+	{
+		var builder = new EnumBuilder()
+		{
+			TypeName = Builder.ToTypeName(parameter.Name),
+			Members = parameter.Schema.Enum
+				.OfType<OpenApiString>()
+				.Select(s => new EnumMemberBuilder(s.Value, null, Builder.Attribute("EnumMember", $"Value = \"{s.Value}\"")))
+		};
+
+		return Builder.ToString(builder);
+	}
+
 	public static string ToType(OpenApiSchema schema, string typeName)
 	{
 		typeName = Builder.ToTypeName(typeName);

@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Markdig;
-using Markdig.Syntax;
-using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using OpenAPIGenerator.Builders;
 using OpenAPIGenerator.Enumerators;
@@ -22,7 +19,12 @@ public static class OpenApiParser
 
 			{String.Join("\n\n", document.Components.Schemas
 				.Where(w => w.Value.Type is "object" or null)
-				.Select(s => TypeHelper.ToType(s.Value, s.Key)))}
+				.Select(s => TypeHelper.ToType(s.Value, s.Key))
+				.Concat(document.Paths.Values
+					.SelectMany(s => s.Parameters)
+					.Where(w => w.Schema.Enum.Any() && w.Schema.Reference is null)
+					.Select(TypeHelper.ToType)))
+			}
 
 			#endregion
 			""";
@@ -130,7 +132,7 @@ public static class OpenApiParser
 		{
 			foreach (var parameter in parameterGroup)
 			{
-				parameters.Add(Builder.Parameter(TypeHelper.GetTypeName(parameter.Schema ?? parameter.Content.FirstOrDefault().Value.Schema) + (parameter.Required ? String.Empty : "?"), parameter.Name, parameter.Required ? null : "null", documentation: TypeHelper.ParseParameterComment(parameter)));
+				parameters.Add(Builder.Parameter(TypeHelper.GetTypeName(parameter) + (parameter.Required ? String.Empty : "?"), parameter.Name, parameter.Required ? null : "null", documentation: TypeHelper.ParseParameterComment(parameter)));
 			}
 
 			if (!wasAdded && operation.RequestBody!.Required == parameterGroup.Key && hasBody)
