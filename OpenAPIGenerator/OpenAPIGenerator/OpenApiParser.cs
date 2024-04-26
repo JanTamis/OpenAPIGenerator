@@ -21,8 +21,9 @@ public static class OpenApiParser
 				.Where(w => w.Value.Type is "object" or null)
 				.Select(s => TypeHelper.ToType(s.Value, s.Key))
 				.Concat(document.Paths.Values
-					.SelectMany(s => s.Parameters)
-					.Where(w => w.Schema.Enum.Any() && w.Schema.Reference is null)
+					.SelectMany(s => s.Operations)
+					.SelectMany(s => s.Value.Parameters)
+					.Where(w => w.Schema is not null && w.Schema.Enum.Any() && w.Schema.Reference is null)
 					.Select(TypeHelper.ToType)))
 			}
 
