@@ -31,4 +31,8 @@
 	  <AdditionalFiles Include="OpenApi\Authenticate.json" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <PackageReference Include="RegexParser" Version="0.5.1" />
+	</ItemGroup>
+
 </Project>

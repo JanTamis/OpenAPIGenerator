@@ -15,17 +15,21 @@ public class IfBuilder(string condition, IEnumerable<IBuilder> content) : IBuild
 		builder.Append(Condition);
 		builder.AppendLine(")");
 
-		if (Content.SingleOrDefault() is LineBuilder line)
-		{
-			using (builder.Indent())
-			{
-				line.Build(builder);
-			}
-		}
-		else
-		{
-			Builder.Block(Content)
+		// 	if (content.Count() == 1 && Content.FirstOrDefault() is LineBuilder line)
+		// 	{
+		// 		using (builder.Indent())
+		// 		{
+		// 			line.Build(builder);
+		// 		}
+		// 	}
+		// 	else
+		// 	{
+		// 		Builder.Block(Content)
+		// 		.Build(builder);
+		// 	}		
+		// }
+
+		Builder.Block(Content)
 			.Build(builder);
-		}		
 	}
 }
