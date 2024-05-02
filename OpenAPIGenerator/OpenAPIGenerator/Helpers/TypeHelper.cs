@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Markdig.Extensions.Tables;
 
 namespace OpenAPIGenerator.Helpers;
 
@@ -60,26 +61,26 @@ public static class TypeHelper
 
 		return type.ToLower() switch
 		{
-			"uri" => "Uri",
-			"uuid" => "Guid",
-			"int32" => "int",
-			"int64" or "long" => "long",
-			"float" => "float",
-			"double" => "double",
-			"byte" => "byte",
+			"uri"               => "Uri",
+			"uuid"              => "Guid",
+			"int32"             => "int",
+			"int64" or "long"   => "long",
+			"float"             => "float",
+			"double"            => "double",
+			"byte"              => "byte",
 			"boolean" or "bool" => "bool",
-			"binary" => "byte[]",
-			"date" => "DateTime",
-			"date-time" => "DateTime",
-			"password" => "string",
-			_ => Builder.ToTypeName(type),
+			"binary"            => "byte[]",
+			"date"              => "DateTime",
+			"date-time"         => "DateTime",
+			"password"          => "string",
+			_                   => Builder.ToTypeName(type),
 		} + (schema.Nullable ? "?" : "");
 	}
 
 	public static string GetTypeName(OpenApiParameter parameter)
 	{
 		var schema = parameter.Schema ?? parameter.Content.FirstOrDefault().Value.Schema;
-		
+
 		if (schema.Enum.Any())
 		{
 			return Builder.ToTypeName(parameter.Name);
@@ -276,6 +277,37 @@ public static class TypeHelper
 						builder.AppendLine($"<c>{text}</c><br/>");
 					}
 
+					break;
+
+				case Table table:
+					builder.AppendLine("<list type=\"table\">");
+
+					using (builder.Indent())
+					{
+						foreach (var row in table.OfType<TableRow>())
+						{
+							using (builder.Indent())
+							{
+								foreach (var cell in row.OfType<TableCell>())
+								{
+									builder.AppendLine(row.IsHeader ? "<listheader>" : "<item>");
+
+									if (!row.IsHeader)
+									{
+										builder.AppendLines($"<description>{ParseComment(GetTextRaw(cell)).Trim()}</description>");
+									}
+									else
+									{
+										builder.AppendLines($"<term>{ParseComment(GetTextRaw(cell)).Trim()}</term>");
+									}
+
+									builder.AppendLine(row.IsHeader ? "</listheader>" : "</item>");
+								}
+							}
+						}
+					}
+
+					builder.Append("</list>");
 					break;
 				default:
 					builder.AppendLines(GetText(item));

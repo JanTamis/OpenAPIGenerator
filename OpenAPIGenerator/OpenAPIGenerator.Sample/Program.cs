@@ -11,6 +11,38 @@ using RegexParser.Nodes.QuantifierNodes;
 
 namespace OpenAPIGenerator;
 
+/// <summary>
+/// <list type="table">
+/// 	<listheader>
+/// 		<term>IBAN</term>
+/// 		<term>account-id</term>
+/// 	</listheader>
+/// 	<item>
+/// 		<term>NL82RABO1108003001</term>
+/// 	</item>
+/// 	<item>
+/// 		<term>Tkw4MlJBQk8xMTA4MDAzMDAxOkVVUg</term>
+/// 	</item>
+/// 	<item>
+/// 		<term>NL80RABO1127000002</term>
+/// 	</item>
+/// 	<item>
+/// 		<term>Tkw4MFJBQk8xMTI3MDAwMDAyOkVVUg</term>
+/// 	</item>
+/// 	<item>
+/// 		<term>NL10RABO1127000001</term>
+/// 	</item>
+/// 	<item>
+/// 		<term>TkwxMFJBQk8xMTI3MDAwMDAxOkVVUg</term>
+/// 	</item>
+/// 	<item>
+/// 		<term>NL53RABO1108001001</term>
+/// 	</item>
+/// 	<item>
+/// 		<term>Tkw1M1JBQk8xMTA4MDAxMDAxOkVVUg</term>
+/// 	</item>
+/// </list>
+/// </summary>
 public partial class Program
 {
 	[GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+\d{4}$")]
