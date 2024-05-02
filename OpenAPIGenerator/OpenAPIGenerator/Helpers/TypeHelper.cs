@@ -13,6 +13,10 @@ namespace OpenAPIGenerator.Helpers;
 
 public static class TypeHelper
 {
+	private static readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder()
+		.UseAdvancedExtensions()
+		.Build();
+
 	public static string GetTypeName(OpenApiSchema? schema)
 	{
 		if (schema is null)
@@ -209,7 +213,7 @@ public static class TypeHelper
 			return null;
 		}
 
-		var document = Markdown.Parse(comment);
+		var document = Markdown.Parse(comment, pipeline);
 		var builder = new IndentedStringBuilder();
 
 		foreach (var item in document)
