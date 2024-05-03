@@ -9,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using Markdig.Extensions.Tables;
+using Markdig.Extensions.AutoIdentifiers;
 
 namespace OpenAPIGenerator.Helpers;
 
@@ -286,28 +287,29 @@ public static class TypeHelper
 					{
 						foreach (var row in table.OfType<TableRow>())
 						{
+							builder.AppendLine(row.IsHeader ? "<listheader>" : "<item>");
+
 							using (builder.Indent())
 							{
 								foreach (var cell in row.OfType<TableCell>())
 								{
-									builder.AppendLine(row.IsHeader ? "<listheader>" : "<item>");
-
-									if (!row.IsHeader)
-									{
-										builder.AppendLines($"<description>{ParseComment(GetTextRaw(cell)).Trim()}</description>");
-									}
-									else
-									{
-										builder.AppendLines($"<term>{ParseComment(GetTextRaw(cell)).Trim()}</term>");
-									}
-
-									builder.AppendLine(row.IsHeader ? "</listheader>" : "</item>");
+									builder.AppendLines($"<term>{ParseComment(GetTextRaw(cell)).Trim()}</term>");
 								}
 							}
+
+							builder.AppendLine(row.IsHeader ? "</listheader>" : "</item>");
 						}
 					}
 
 					builder.Append("</list>");
+					break;
+				case LinkReferenceDefinitionGroup linkReferenceDefinitionGroup:
+					foreach (var linkReference in linkReferenceDefinitionGroup.OfType<HeadingLinkReferenceDefinition>())
+					{
+						var temp = GetText(linkReference.Heading).TrimStart(linkReference.Heading.HeaderChar);
+
+
+					}
 					break;
 				default:
 					builder.AppendLines(GetText(item));

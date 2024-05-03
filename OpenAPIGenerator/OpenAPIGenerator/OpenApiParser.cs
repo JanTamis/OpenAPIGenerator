@@ -350,10 +350,10 @@ public static class OpenApiParser
 				{
 					if (type is "byte[]")
 					{
-						return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadAsByteArrayAsync(token),");	
+						return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false),");	
 					}
 					
-					return Builder.Line($"HttpStatusCode.{result}{padding} => await ParseResponse<{type}>(response, token),");
+					return Builder.Line($"HttpStatusCode.{result}{padding} => await ParseResponse<{type}>(response, token).ConfigureAwait(false),");
 				}
 
 				if (hasReturnType)
