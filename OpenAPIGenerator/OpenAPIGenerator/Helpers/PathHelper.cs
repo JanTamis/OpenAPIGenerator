@@ -3,7 +3,6 @@ using OpenAPIGenerator.Builders;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Expressions;
 
 namespace OpenAPIGenerator.Helpers;
 
@@ -58,13 +57,14 @@ public static class PathHelper
 		}
 		else
 		{
-			yield return Builder.Line($"var url = \"{result.TrimEnd('?', '&')}\";");
+			yield break;
+			//yield return Builder.Line($"var url = \"{result.TrimEnd('?', '&')}\";");
 		}
 
-		if (optionalParameters.Any())
-		{
+		// if (optionalParameters.Any())
+		// {
 			yield return Builder.WhiteLine();
-		}
+		// }
 
 		for (var i = 0; i < optionalParameters.Count; i++)
 		{
@@ -121,5 +121,26 @@ public static class PathHelper
 
 			yield return Builder.Line($"url.AppendQuery(\"{parameter.Name}\", {Builder.ToParameterName(parameter.Name)});");
 		}
+	}
+	
+	public static (bool HasHoles, bool HasQueryHoles) GetPathHoles(IList<OpenApiParameter> parameters)
+	{
+		var hasQueryHoles = false;
+		var hasHoles = false;
+
+		foreach (var parameter in parameters)
+		{
+			switch (parameter.In)
+			{
+				case ParameterLocation.Path:
+					hasHoles = true;
+					break;
+				case ParameterLocation.Query when !parameter.Required:
+					hasQueryHoles = true;
+					break;
+			}
+		}
+
+		return (hasHoles, hasQueryHoles);
 	}
 }

@@ -30,6 +30,12 @@
 		<PackageReference Include="System.Memory" Version="4.5.5" GeneratePathProperty="true" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Reference Include="Microsoft.Interop.SourceGeneration">
+	    <HintPath>..\..\..\..\..\..\usr\local\share\dotnet\packs\Microsoft.NETCore.App.Ref\8.0.1\analyzers\dotnet\cs\Microsoft.Interop.SourceGeneration.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
+
 	<PropertyGroup>
 		<GetTargetPathDependsOn>
 			$(GetTargetPathDependsOn);GetDependencyTargetPaths

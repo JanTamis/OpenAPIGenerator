@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.OpenApi.Models;
 using OpenAPIGenerator.Builders;
 using OpenAPIGenerator.Enumerators;
+using OpenAPIGenerator.Extensions;
 using OpenAPIGenerator.Helpers;
 
 namespace OpenAPIGenerator;
@@ -12,20 +13,20 @@ public static class OpenApiParser
 {
 	public static string Parse(OpenApiDocument document, string rootNamespace)
 	{
+		var typeList = GetTypes(document);
+
+		var typeDictionary = typeList.ToDictionary(t => t.Key, t => t.Value, new OpenApiSchemaComparer());
+
+		var types = typeList
+			.OrderBy(o => o.Value)
+			.Select(s => TypeHelper.ToType(s.Key, s.Value, typeDictionary));
+
 		return $"""
 			{Builder.ToString(CreateClient(document, rootNamespace))}
 
 			#region Schema's
 
-			{String.Join("\n\n", document.Components.Schemas
-				.Where(w => w.Value.Type is "object" or null)
-				.Select(s => TypeHelper.ToType(s.Value, s.Key))
-				.Concat(document.Paths.Values
-					.SelectMany(s => s.Operations)
-					.SelectMany(s => s.Value.Parameters)
-					.Where(w => w.Schema is not null && w.Schema.Enum.Any() && w.Schema.Reference is null)
-					.Select(TypeHelper.ToType)))
-			}
+			{String.Join("\n\n", types.Select(Builder.ToString))}
 
 			#endregion
 			""";
@@ -58,6 +59,7 @@ public static class OpenApiParser
 			Usings =
 			[
 				"System",
+				"System.Linq",
 				"System.Text.RegularExpressions",
 				"System.ComponentModel.DataAnnotations",
 				"System.Text.Json.Serialization",
@@ -87,16 +89,20 @@ public static class OpenApiParser
 					],
 				}
 			],
-			Methods = ParsePaths(document.Paths).Append(Builder.Method("Dispose", Builder.Line("Client.Dispose();"))),
+			Methods = ParsePaths(document.Paths).Append(Builder.Method("Dispose", Builder.Line("Client.Dispose();")))
+				.Prepend(Builder.Method("ProcessResponse", "void", false, AccessModifier.None, [new ParameterBuilder("HttpClient", "client"), new ParameterBuilder("HttpResponseMessage", "response")], []) with { IsPartial = true })
+				.Prepend(Builder.Method("PrepareRequest", "void", false, AccessModifier.None, [new ParameterBuilder("HttpClient", "client"), new ParameterBuilder("HttpRequestMessage", "request")], []) with { IsPartial = true }),
 		};
 
 		type.Methods = type.Methods.Append(Builder.Method("ParseResponse<T>", "virtual Task<T?>", false, AccessModifier.Public,
-			[Builder.Parameter("HttpResponseMessage", "response"), Builder.Parameter("CancellationToken", "token")], [Builder.Line("return response.Content.ReadFromJsonAsync<T>(token);")]));
+			[Builder.Parameter("HttpResponseMessage", "response"), Builder.Parameter("CancellationToken", "token")],
+			[Builder.Line("return response.Content.ReadFromJsonAsync<T>(token);")]));
 
 		type.Methods = type.Methods
 			.Concat(document.Paths.Values
 				.SelectMany(s => s.Operations)
 				.Select(s => s.Value.RequestBody)
+				.Where(w => TryGetBody(w, out _))
 				.SelectMany(s => s?.Content?.Values?.Select(x => x.Schema) ?? [])
 				.Distinct()
 				.Select(GetValidation)
@@ -129,6 +135,8 @@ public static class OpenApiParser
 		var wasAdded = operation.RequestBody is null;
 		var hasBody = TryGetBody(operation.RequestBody, out var mediaType);
 
+		var (hasHoles, hasQueryHoles) = PathHelper.GetPathHoles(operation.Parameters);
+
 		foreach (var parameterGroup in operation.Parameters.GroupBy(g => g.Required))
 		{
 			foreach (var parameter in parameterGroup)
@@ -142,13 +150,13 @@ public static class OpenApiParser
 
 				if (operation.RequestBody.Required)
 				{
-					parameters.Add(Builder.Parameter(typeName, "body", null, "The body of the request."));					
+					parameters.Add(Builder.Parameter(typeName, "body", null, "The body of the request."));
 				}
 				else
 				{
 					parameters.Add(Builder.Parameter($"{typeName}?", "body", "null", "The body of the request. (optional)"));
 				}
-					
+
 				wasAdded = true;
 			}
 		}
@@ -168,7 +176,7 @@ public static class OpenApiParser
 		}
 
 		parameters.Add(Builder.Parameter("CancellationToken", "token", "default", "The cancellation token to cancel the request (optional)."));
-		
+
 		method.Parameters = parameters;
 
 		var parameterCheck = operation.Parameters
@@ -221,12 +229,19 @@ public static class OpenApiParser
 		}
 		else
 		{
-			Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, url);"));
+			if (!hasHoles && !hasQueryHoles)
+			{
+				Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, \"{path}\");"));
+			}
+			else
+			{
+				Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, url);"));
+			}
 		}
 
 		Builder.Append(method, ParseHeaders(operation.Parameters.Where(w => w.In == ParameterLocation.Header).ToList()));
 
-		if (TryGetBody(operation.RequestBody, out _))
+		if (hasBody)
 		{
 			Builder.Append(method, Builder.WhiteLine());
 
@@ -239,21 +254,36 @@ public static class OpenApiParser
 				Builder.Append(method, Builder.If("body is not null",
 					[Builder.Line($"request.Content = JsonContent.Create(body, MediaTypeHeaderValue.Parse(\"{mediaTypes}\"));")]));
 			}
+
+			Builder.Append(method, Builder.WhiteLine());
+		}
+		else if (operation.Parameters.Any(a => a.In is ParameterLocation.Header))
+		{
+			Builder.Append(method, Builder.WhiteLine());
 		}
 
 		//ParseResponse(operation.Responses, method, false);
 
 		var hasReturnType = operation.Responses.Any(a => Int32.TryParse(a.Key, out var code) && code is >= 200 and <= 299 && a.Value.Content.Values.FirstOrDefault()?.Schema is not null);
 
-		// if (hasHeaders)
-		// {
+		Builder.Append(method, Builder.Line("PrepareRequest(Client, request);"));
 		Builder.Append(method, Builder.WhiteLine());
-		// }
 
 		Builder.Append(method, Builder.Line("using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);"));
+		Builder.Append(method, Builder.Line("ProcessResponse(Client, response);"));
 		Builder.Append(method, Builder.WhiteLine());
-		Builder.Append(method, ParseResponse(operation.Responses, hasReturnType));
 
+		if (operation.Responses.Any(a => Int32.TryParse(a.Key, out var code) && code is < 200 or > 299))
+		{
+			Builder.Append(method, Builder.Line("var headers = response.Headers.ToDictionary(h => h.Key, h => h.Value);"));
+			Builder.Append(method, Builder.WhiteLine());
+			Builder.Append(method, Builder.Line("foreach (var header in response.Content.Headers)"));
+			Builder.Append(method, Builder.Block(Builder.Line("headers.Add(header.Key, header.Value);")));
+
+			Builder.Append(method, Builder.WhiteLine());
+		}
+
+		Builder.Append(method, ParseResponse(operation.Responses, hasReturnType));
 
 		return method;
 	}
@@ -340,28 +370,28 @@ public static class OpenApiParser
 				{
 					if (hasReturnType)
 					{
-						return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException(\"{caseText}\", response),");
+						return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException(\"{caseText}\", response, headers),");
 					}
 
-					return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException(\"{caseText}\", response),");
+					return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException(\"{caseText}\", response, headers),");
 				}
 
 				if (code is >= 200 and <= 299)
 				{
 					if (type is "byte[]")
 					{
-						return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false),");	
+						return Builder.Line($"HttpStatusCode.{result}{padding} => await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false),");
 					}
-					
+
 					return Builder.Line($"HttpStatusCode.{result}{padding} => await ParseResponse<{type}>(response, token).ConfigureAwait(false),");
 				}
 
 				if (hasReturnType)
 				{
-					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token).ConfigureAwait(false)),");
+					return Builder.Line($"HttpStatusCode.{result}{padding} => throw new ApiException<{type}>(\"{caseText}\", response, headers, await ParseResponse<{type}>(response, token).ConfigureAwait(false)),");
 				}
 
-				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, await ParseResponse<{type}>(response, token).ConfigureAwait(false)),");
+				return Builder.Line($"HttpStatusCode.{result}{padding} => new ApiException<{type}>(\"{caseText}\", response, headers, await ParseResponse<{type}>(response, token).ConfigureAwait(false)),");
 			})
 			.Append(Builder.Line($"_{new String(' ', length + "HttpStatusCode".Length)} => {(hasReturnType ? "throw " : String.Empty)}new InvalidOperationException(\"Unknown status code has been returned.\"),")), ";");
 	}
@@ -451,12 +481,12 @@ public static class OpenApiParser
 				if (schema.Required.Contains(item.Key))
 				{
 					AppendValidation($"!Regex.IsMatch(item.{parameterName}, @\"{item.Value.Pattern}\")",
-					$"{{nameof(item.{parameterName})}} did not match the pattern");
+						$"{{nameof(item.{parameterName})}} did not match the pattern");
 				}
 				else
 				{
 					AppendValidation($"item.{parameterName} is not null && !Regex.IsMatch(item.{parameterName}, @\"{item.Value.Pattern}\")",
-					$"{{nameof(item.{parameterName})}} did not match the pattern");
+						$"{{nameof(item.{parameterName})}} did not match the pattern");
 				}
 			}
 		}
@@ -482,7 +512,75 @@ public static class OpenApiParser
 	private static bool TryGetBody(OpenApiRequestBody? requestBody, out KeyValuePair<string, OpenApiMediaType> mediaType)
 	{
 		mediaType = requestBody?.Content?.FirstOrDefault(f => f.Key.Contains("json")) ?? default;
-		
+
 		return !String.IsNullOrWhiteSpace(mediaType.Key);
+	}
+
+	private static IEnumerable<KeyValuePair<string, OpenApiSchema>> GetPropertySchemas(OpenApiSchema schema, string propertyName)
+	{
+		yield return new KeyValuePair<string, OpenApiSchema>(propertyName, schema);
+
+		if (schema.Properties is null)
+		{
+			yield break;
+		}
+
+		foreach (var item in schema.Properties)
+		{
+			if (item.Value.Type == "object")
+			{
+				foreach (var subItem in GetPropertySchemas(item.Value, item.Key))
+				{
+					yield return subItem;
+				}
+			}
+		}
+	}
+
+	private static IEnumerable<KeyValuePair<OpenApiSchema, string>> GetBodies(OpenApiDocument document)
+	{
+		return document.Paths.Values
+			.SelectMany(s => s.Operations)
+			.Where(w => TryGetBody(w.Value.RequestBody, out _))
+			.SelectMany(s => s.Value?.RequestBody?.Content?.Values?.Select(x => x.Schema) ?? [])
+			.Where(w => w is not null && document.Components.Schemas.All(a => a.Value != w))
+			.Select(s => new KeyValuePair<OpenApiSchema, string>(s, TypeHelper.GetTypeName(s)));
+	}
+
+	private static IEnumerable<KeyValuePair<OpenApiSchema, string>> GetSchemas(OpenApiDocument document)
+	{
+		return document.Components.Schemas
+			.Where(w => w.Value.Type is "object" or null)
+			.SelectMany(s => GetPropertySchemas(s.Value, s.Key))
+			.Select(s => new KeyValuePair<OpenApiSchema, string>(s.Value, Builder.ToTypeName(s.Key)));
+	}
+
+	private static IEnumerable<KeyValuePair<OpenApiSchema, string>> GetOperations(OpenApiDocument document)
+	{
+		return document.Paths.Values
+			.SelectMany(s => s.Operations)
+			.SelectMany(s => s.Value.Parameters)
+			.Where(w => w.Schema is not null && w.Schema.Enum.Any() && w.Schema.Reference is null)
+			.Select(s => new KeyValuePair<OpenApiSchema, string>(s.Schema, TypeHelper.GetTypeName(s)));
+	}
+
+	private static List<KeyValuePair<OpenApiSchema, string>> GetTypes(OpenApiDocument document)
+	{
+		return GetBodies(document)
+			.Concat(GetSchemas(document))
+			.Concat(GetOperations(document))
+			.GroupBy(g => g.Value)
+			.SelectMany(s => s
+				.Index((item, index) =>
+				{
+					if (index != 0)
+					{
+						return new KeyValuePair<OpenApiSchema, string>(item.Key, item.Value + (index + 1));
+					}
+
+					return item;
+				}))
+			.DistinctBy(d => d.Key)
+			.ToList();
 	}
 }

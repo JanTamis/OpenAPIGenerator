@@ -13,6 +13,9 @@ public record PropertyBuilder : IBuilder
 	public string TypeName { get; set; }
 	public string? DefaultValue { get; set; }
 	public string? Summary { get; set; }
+	
+	public IEnumerable<IBuilder> GetContent { get; set; }
+	public IEnumerable<IBuilder> SetContent { get; set; }
 
 	public PropertyBuilder(string typeName, string name)
 	{
@@ -39,7 +42,7 @@ public record PropertyBuilder : IBuilder
 		builder.Append(' ');
 		builder.Append(TypeName);
 		builder.Append(' ');
-		builder.Append(ConvertToCamelCase(Name));
+		builder.Append(Builder.ToTypeName(Name));
 		builder.Append(' ');
 
 		builder.Append("{ ");
@@ -67,30 +70,5 @@ public record PropertyBuilder : IBuilder
 			builder.Append(DefaultValue!);
 			builder.Append(';');
 		}
-	}
-
-	private static string ConvertToCamelCase(string name)
-	{
-		if (String.Equals(name, "integer", StringComparison.InvariantCultureIgnoreCase) || String.Equals(name, "int", StringComparison.InvariantCultureIgnoreCase))
-		{
-			return "int";
-		}
-
-		if (String.Equals(name, "string", StringComparison.InvariantCultureIgnoreCase))
-		{
-			return "string";
-		}
-
-		var parts = name.Split('_');
-
-		for (var i = 0; i < parts.Length; i++)
-		{
-			if (!String.IsNullOrEmpty(parts[i]))
-			{
-				parts[i] = Char.ToUpper(parts[i][0]) + parts[i].Substring(1);
-			}
-		}
-
-		return String.Join("", parts);
 	}
 }

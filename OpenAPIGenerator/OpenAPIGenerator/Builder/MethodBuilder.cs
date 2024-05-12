@@ -8,10 +8,12 @@ public record MethodBuilder : IBuilder, IContent
 	public string MethodName { get; set; }
 	public string? Summary { get; set; }
 	public string ReturnType { get; set; } = "void";
-	
+
 	public bool IsAsync { get; set; }
-	
-	public AccessModifier AccessModifier { get; set; } = AccessModifier.Public;
+
+	public bool IsPartial { get; set; }
+
+public AccessModifier AccessModifier { get; set; } = AccessModifier.Public;
 
 	public IEnumerable<AttributeBuilder>? Attributes { get; set; }
 	
@@ -48,6 +50,11 @@ public record MethodBuilder : IBuilder, IContent
 			builder.Append(' ');
 		}
 
+		if (IsPartial)
+		{
+			builder.Append("partial ");
+		}
+
 		if (IsAsync)
 		{
 			if (ReturnType is "void" or "Task" or "?" || String.IsNullOrWhiteSpace(ReturnType))
@@ -82,6 +89,12 @@ public record MethodBuilder : IBuilder, IContent
 			}
 			
 			parameter.Build(builder);
+		}
+
+		if (IsPartial)
+		{
+			builder.Append(");");
+			return;
 		}
 
 		builder.AppendLine(")");

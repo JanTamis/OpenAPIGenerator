@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using OpenAPIGenerator.Sample;
 using RegexParser;
 using RegexParser.Nodes;
 using RegexParser.Nodes.CharacterClass;
@@ -40,12 +41,16 @@ public partial class Program
 	[GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+\d{4}$")]
 	public partial Regex GetRegex();
 
-	public static void Main(string[] args)
+	public async static Task Main(string[] args)
 	{
-		var parser = new Parser(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+\d{4}$");
-		var result = parser.Parse();
+		// var parser = new Parser(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+\d{4}$");
+		// var result = parser.Parse();
+		//
+		// Console.WriteLine(RegexParser.Parse(result));
 
-		Console.WriteLine(RegexParser.Parse(result));
+		var api = new SamenwerkenApi();
+
+		var health = await api.GetAppHealthAsync();
 	}
 }
 

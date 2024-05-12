@@ -65,14 +65,14 @@ public class TypeBuilder : BaseTypeBuilder
 			builder.Append("static ");
 		}
 
-		if (Modifiers.HasFlag(TypeAttributes.Partial))
-		{
-			builder.Append("partial ");
-		}
-
 		if (Modifiers.HasFlag(TypeAttributes.Sealed))
 		{
 			builder.Append("sealed ");
+		}
+
+		if (Modifiers.HasFlag(TypeAttributes.Partial))
+		{
+			builder.Append("partial ");
 		}
 
 		builder.Append(TypeKind switch

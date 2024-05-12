@@ -6,10 +6,9 @@ using OpenAPIGenerator.Builders;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Text;
 using Markdig.Extensions.Tables;
 using Markdig.Extensions.AutoIdentifiers;
+using TypeAttributes = OpenAPIGenerator.Enumerators.TypeAttributes;
 
 namespace OpenAPIGenerator.Helpers;
 
@@ -17,9 +16,11 @@ public static class TypeHelper
 {
 	private static readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder()
 		.UseAdvancedExtensions()
+		.UseReferralLinks()
+		.UseReferralLinks()
 		.Build();
 
-	public static string GetTypeName(OpenApiSchema? schema)
+	public static string GetTypeName(OpenApiSchema? schema, string? fallback = null)
 	{
 		if (schema is null)
 		{
@@ -59,6 +60,10 @@ public static class TypeHelper
 		{
 			type = schema.Reference.Id;
 		}
+		else if (schema.Properties.Any())
+		{
+			type = fallback ?? schema.Properties.FirstOrDefault().Key;
+		}
 
 		return type.ToLower() switch
 		{
@@ -90,9 +95,9 @@ public static class TypeHelper
 		return GetTypeName(schema);
 	}
 
-	public static string ToType(OpenApiParameter parameter)
+	public static BaseTypeBuilder ToType(OpenApiParameter parameter)
 	{
-		var builder = new EnumBuilder()
+		var builder = new EnumBuilder
 		{
 			TypeName = Builder.ToTypeName(parameter.Name),
 			Members = parameter.Schema.Enum
@@ -100,13 +105,13 @@ public static class TypeHelper
 				.Select(s => new EnumMemberBuilder(s.Value, null, Builder.Attribute("EnumMember", $"Value = \"{s.Value}\"")))
 		};
 
-		return Builder.ToString(builder);
+		return builder;
 	}
 
-	public static string ToType(OpenApiSchema schema, string typeName)
+	public static BaseTypeBuilder ToType(OpenApiSchema schema, string typeName, Dictionary<OpenApiSchema, string> typeNames)
 	{
 		typeName = Builder.ToTypeName(typeName);
-
+		
 		if (schema.Enum.Any())
 		{
 			var enumBuilder = new EnumBuilder
@@ -119,18 +124,18 @@ public static class TypeHelper
 					.Select(s => new EnumMemberBuilder(s.Value, null, Builder.Attribute("EnumMember", $"Value = \"{s.Value}\"")))
 			};
 
-			return Builder.ToString(enumBuilder);
+			return enumBuilder;
 		}
 
 		var builder = new TypeBuilder(typeName)
 		{
-			Modifiers = Enumerators.TypeAttributes.Sealed,
+			Modifiers = TypeAttributes.Partial | TypeAttributes.Sealed,
 			Summary = ParseComment(schema.Description),
 			Properties = schema.Properties
 				.Select(s =>
 				{
 					var isRequired = schema.Required.Contains(s.Key);
-					var type = TypeHelper.GetTypeName(s.Value);
+					var type = s.Value.Type == "object" ? typeNames[s.Value] : GetTypeName(s.Value, s.Key);
 					var isString = type == "string";
 
 					if (!isRequired)
@@ -142,7 +147,7 @@ public static class TypeHelper
 						type = $"required {type}";
 					}
 
-					var attributes = new List<AttributeBuilder>()
+					var attributes = new List<AttributeBuilder>
 					{
 						Builder.Attribute("JsonPropertyName", $"\"{s.Key}\""),
 					};
@@ -161,7 +166,7 @@ public static class TypeHelper
 							attribute.Parameters = attribute.Parameters.Append(s.Value.MaxLength.Value.ToString());
 						}
 
-						if (s.Value.MinLength.HasValue && s.Value.MinLength.Value > 0)
+						if (s.Value.MinLength is > 0)
 						{
 							attribute.Parameters = attribute.Parameters.Append($"MinimumLength = {s.Value.MinLength.Value}");
 						}
@@ -193,7 +198,7 @@ public static class TypeHelper
 
 		builder.Properties = builder.Properties.Concat([Builder.Property("IDictionary<string, object>", "AdditionalProperties", null, Builder.Attribute("JsonExtensionData"))]);
 
-		return Builder.ToString(builder);
+		return builder;
 	}
 
 	public static string? ParseParameterComment(OpenApiParameter parameter)
@@ -319,12 +324,12 @@ public static class TypeHelper
 
 		return builder.ToString();
 
-		string GetText(Block block)
+		string GetText(MarkdownObject block)
 		{
 			return GetTextRaw(block).TrimEnd().Replace("\n", "<br/>\n").Replace("<br>", "<br/>\n");
 		}
 
-		string GetTextRaw(Block block)
+		string GetTextRaw(MarkdownObject block)
 		{
 			return comment.Substring(block.Span.Start, block.Span.Length);
 		}

@@ -61,7 +61,7 @@ public static class Builder
 		Summary = summary,
 		Attributes = attributes,
 	};
-
+	
 	public static SwitchBuilder Switch(string expression, params CaseBuilder[] cases) => new SwitchBuilder
 	{
 		Expression = expression,
@@ -130,7 +130,14 @@ public static class Builder
 		{
 			if (!string.IsNullOrEmpty(parts[i]))
 			{
-				parts[i] = Char.ToUpper(parts[i][0]) + parts[i].Substring(1);
+				if (parts[i].All(Char.IsUpper))
+				{
+					parts[i] = parts[i][0] + parts[i].Substring(1).ToLower();
+				}
+				else
+				{
+					parts[i] = Char.ToUpper(parts[i][0]) + parts[i].Substring(1);
+				}
 			}
 		}
 
@@ -139,31 +146,9 @@ public static class Builder
 
 	public static string ToParameterName(string name)
 	{
-		if (String.Equals(name, "integer", StringComparison.InvariantCultureIgnoreCase) || String.Equals(name, "int", StringComparison.InvariantCultureIgnoreCase))
-		{
-			return "int";
-		}
+		name = ToTypeName(name);
 
-		if (String.Equals(name, "string", StringComparison.InvariantCultureIgnoreCase))
-		{
-			return "string";
-		}
-
-		name = name.Trim('_', '-', '.');
-
-		var parts = name.Split('_', '-', '.');
-
-		parts[0] = parts[0].ToLower();
-
-		for (var i = 1; i < parts.Length; i++)
-		{
-			if (!string.IsNullOrEmpty(parts[i]))
-			{
-				parts[i] = Char.ToUpper(parts[i][0]) + parts[i].Substring(1).ToLower();
-			}
-		}
-
-		return Regex.Replace(String.Join("", parts), @"[^a-zA-Z0-9_]", String.Empty);
+		return Char.ToLower(name[0]) + name.Substring(1);
 	}
 
 	public static string ToString<T>(T item) where T : IBuilder

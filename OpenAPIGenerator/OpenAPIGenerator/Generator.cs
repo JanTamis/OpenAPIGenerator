@@ -15,7 +15,7 @@ public class Generator : IIncrementalGenerator
 	{
 		var files = context.AdditionalTextsProvider
 			.Where(x => Path.GetExtension(x.Path).ToLower() is ".json" or ".yaml")
-			.Select((s, token) => (s.Path, s.GetText()?.ToString()));
+			.Select((s, token) => (s.Path, s.GetText(token)?.ToString()));
 
 		var compilationAndFiles = context.CompilationProvider.Combine(files.Collect());
 
@@ -37,6 +37,7 @@ public class Generator : IIncrementalGenerator
 
 		context.AddSource("ApiException", $$""""
 			using System;
+			using System.Collections.Generic;
 			using System.Net;
 			using System.Net.Http;
 			using System.Net.Http.Headers;
@@ -47,15 +48,15 @@ public class Generator : IIncrementalGenerator
 			{
 				public HttpStatusCode StatusCode { get; private set; }
 			
-				public HttpResponseHeaders Headers { get; private set; }
+				public IReadOnlyDictionary<String, IEnumerable<String>> Headers { get; private set; }
 				
-				public ApiException(string message, HttpResponseMessage response)
-						: this(message, response.StatusCode, response.Headers, null)
+				public ApiException(string message, HttpResponseMessage response, IReadOnlyDictionary<String, IEnumerable<String>> headers)
+						: this(message, response.StatusCode, headers, null)
 				{
 				
 				}
 			
-				public ApiException(string message, HttpStatusCode statusCode, HttpResponseHeaders headers, Exception? innerException)
+				public ApiException(string message, HttpStatusCode statusCode, IReadOnlyDictionary<String, IEnumerable<String>> headers, Exception? innerException)
 						: base($"""
 					{message}
 					
@@ -75,6 +76,7 @@ public class Generator : IIncrementalGenerator
 
 		context.AddSource("ApiException`T", $$""""
 			using System;
+			using System.Collections.Generic;
 			using System.Net;
 			using System.Net.Http;
 			using System.Net.Http.Headers;
@@ -85,13 +87,13 @@ public class Generator : IIncrementalGenerator
 			{
 				public TResult? Result { get; }
 				
-				public ApiException(string message, HttpResponseMessage response, TResult? result)
-					: this(message, response.StatusCode, response.Headers, result, null)
+				public ApiException(string message, HttpResponseMessage response, IReadOnlyDictionary<String, IEnumerable<String>> headers, TResult? result)
+					: this(message, response.StatusCode, headers, result, null)
 				{
 				
 				}
 			
-				public ApiException(string message, HttpStatusCode statusCode, HttpResponseHeaders headers, TResult? result, Exception? innerException)
+				public ApiException(string message, HttpStatusCode statusCode, IReadOnlyDictionary<String, IEnumerable<String>> headers, TResult? result, Exception? innerException)
 						: base(message, statusCode, headers, innerException)
 				{
 					Result = result;
