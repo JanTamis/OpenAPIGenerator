@@ -225,7 +225,7 @@ public static class OpenApiParser
 
 		if (operation.Parameters.Any(w => w.In is ParameterLocation.Query or ParameterLocation.Path))
 		{
-			Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, new Uri(url.ToStringAndClear()));"));
+			Builder.Append(method, Builder.Line($"using var request = new HttpRequestMessage(HttpMethod.{type}, url.ToStringAndClear());"));
 		}
 		else
 		{

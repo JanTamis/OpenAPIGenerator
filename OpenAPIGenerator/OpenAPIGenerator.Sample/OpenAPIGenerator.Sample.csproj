@@ -17,13 +17,17 @@
 
 	<ItemGroup>
 	  <None Remove="DSO.json" />
+	  <None Remove="OpenApi\account.json" />
+	  <None Remove="OpenApi\Authenticate.json" />
 	  <None Remove="OpenApi\samenwerkingen-behandelen-overheid-v4.json" />
 	</ItemGroup>
 
 	<ItemGroup>
 	  <None Remove="Starter.json" />
+	  <AdditionalFiles Include="OpenApi\account.json" />
+	  <AdditionalFiles Include="OpenApi\Authenticate.json" />
 	  <AdditionalFiles Include="OpenApi\samenwerkingen-behandelen-overheid-v4.json" />
-	  <None Include="OpenApi\Starter.json" />
+	  <AdditionalFiles Include="OpenApi\Starter.json" />
 	  <None Remove="account.json" />
 	</ItemGroup>
 
